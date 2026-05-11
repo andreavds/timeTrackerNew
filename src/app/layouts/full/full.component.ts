@@ -300,6 +300,10 @@ export class FullComponent implements OnInit {
         this.jitsiMinimized = false;
       });
     } catch (e) {}
+
+    if (!this.clientHasTeam) {
+      this.toggleCollapsed();
+    }
   }
 
   ngOnDestroy() {
