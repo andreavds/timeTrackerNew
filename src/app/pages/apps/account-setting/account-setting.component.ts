@@ -28,6 +28,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { CompaniesService } from 'src/app/services/companies.service';
 import { PlansService } from 'src/app/services/plans.service';
+import { CompanyPlan } from 'src/app/models/Plan.model';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { environment } from 'src/environments/environment';
 import { catchError, finalize, switchMap } from 'rxjs/operators';
@@ -51,7 +52,8 @@ import { formatEnglishLevelDisplay, getEnglishLevelLabel } from 'src/app/utils/e
   standalone: true,
   selector: 'app-account-setting',
   imports: [MaterialModule, MatCardModule, ReactiveFormsModule, MatIconModule, TablerIconsModule, MatTabsModule, MatFormFieldModule, MatSlideToggleModule, MatSelectModule, MatInputModule, MatButtonModule, MatDividerModule, MatDatepickerModule, MatNativeDateModule, NgIf, RouterLink, MatProgressBar, CommonModule, MatMenuModule, LoaderComponent, ModalComponent],
-  templateUrl: './account-setting.component.html'
+  templateUrl: './account-setting.component.html',
+  styleUrl: './account-setting.component.scss'
 })
 export class AppAccountSettingComponent implements OnInit {
   selectedTabIndex: number = 0;
@@ -159,10 +161,7 @@ export class AppAccountSettingComponent implements OnInit {
   showInsuranceDetails: boolean = false;
   selectedTag: string = 'general';
   role: string | null = localStorage.getItem('role');
-  currentPlan: any = {
-    id: '',
-    name: ''
-  };
+  currentPlan: { id: number | string; name: string } = { id: '', name: '' };
   logo: string = 'assets/images/default-logo.jpg';
   picture: string = this.role === '3' ? 'assets/images/default-user-profile-pic.png' : 'assets/images/default-logo.jpg';
   originalLogo: string = '';
@@ -261,9 +260,14 @@ export class AppAccountSettingComponent implements OnInit {
   videoUploadProgress: number = 0;
   maxVideoSize: number = 100 * 1024 * 1024; 
   maxPictureSize: number =  1 * 1024 * 1024;
+  currentPlanData: CompanyPlan | null = null;
   isLoadingSubscription = false;
+  isLoadingPlanReset = false;
   formChanged: boolean = false;
   originalUserData: any = null;
+  subscriptionReceipt: SubscriptionReceipt | null = null;
+  clientSubscriptionReceipt: SubscriptionReceipt | null = null;
+  planSubscriptionReceipt: SubscriptionReceipt | null = null;
   isLoadingReceipt = false;
   certifications: any[] = [];
   isLoadingCertifications = false;
@@ -283,7 +287,8 @@ export class AppAccountSettingComponent implements OnInit {
             private cdr: ChangeDetectorRef,
             public applicationsService: ApplicationsService,
             private route: ActivatedRoute,
-            private router: Router,
+            public router: Router,
+            private subscriptionService: SubscriptionService,
             private certificationsService: CertificationsService,
             private permissionService: PermissionService,
           ) {}
@@ -517,9 +522,12 @@ export class AppAccountSettingComponent implements OnInit {
               }
 
               this.plansService.getCurrentPlan(company.company_id).subscribe({
-                next: (plan: any) => {
-                  this.currentPlan.id = plan.plan.id
+                next: (plan: CompanyPlan) => {
+                  this.currentPlan.id = plan.plan.id;
                   this.currentPlan.name = plan.plan.name;
+                  this.currentPlanData = plan;
+                  this.plansService.setCurrentPlan(plan);
+                  this.loadClientReceipt();
                 },
                 complete: () => {
                   // Initialize form after all client data is fetched
@@ -1609,6 +1617,30 @@ export class AppAccountSettingComponent implements OnInit {
 
   addCertification() {
     this.openCertificationDialog('Add', {});
+  }
+
+  get effectivePlanStatus(): string {
+    const sub = this.currentPlanData?.subscription;
+    if (sub?.status && sub.status !== 'inactive') return sub.status;
+    return this.currentPlanData?.status ?? '';
+  }
+
+  get effectiveClientPlanStatus(): string {
+    const sub = this.currentPlanData?.client_plan;
+    if (sub?.status && sub.status !== 'inactive') return sub.status;
+    return this.currentPlanData?.status ?? '';
+  }
+
+  formatPlanStatus(status: string | undefined | null): string {
+    const labels: Record<string, string> = {
+      active: 'Active',
+      trialing: 'Trialing',
+      past_due: 'Past Due',
+      incomplete: 'Incomplete',
+      canceled: 'Canceled',
+      inactive: 'Inactive',
+    };
+    return status ? (labels[status] ?? status) : '';
   }
 
   isImage(url: string | undefined): boolean {
