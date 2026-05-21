@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, computed } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { InvoiceService } from 'src/app/services/apps/invoice/invoice.service';
 import {
@@ -38,9 +38,10 @@ import { MatDialog } from '@angular/material/dialog';
 })
 export class AppEditInvoiceComponent {
   id = signal<number>(0);
-  itemsDisplayedColumns: string[] = ['description', 'hours', 'hourly-rate', 'flat-fee', 'cost'];
-  itemsFooterDisplayedColumns = ['footer-sub-total', 'footer-amount', 'empty-column'];
-  itemsSecondFooterDisplayedColumns = ['footer-total', 'footer-amount', 'empty-column'];
+  itemsDisplayedColumns: string[] = ['description', 'hours', 'hourly-rate', 'flat-fee', 'cost', 'item-actions'];
+  itemsFooterDisplayedColumns = ['footer-sub-total', 'footer-sub-amount', 'empty-column'];
+  itemsSecondFooterDisplayedColumns = ['footer-total', 'footer-total-amount', 'empty-column'];
+  itemsAddItemColumns = ['add-new-item'];
   ratingsDisplayedColumns: string[] = ['day', 'date', 'clock-in', 'clock-out', 'total-hours', 'comments', 'actions'];
   footerDisplayedColumns = ['footer-total', 'footer-amount', 'empty-column', 'empty-column'];
   footerAddEntryColumns = ['add-entry'];
@@ -60,6 +61,11 @@ export class AppEditInvoiceComponent {
   changedFlatFees = new Set<any>();
   isEntriesTableVisible = true;
   deletedEntries = new Set<number>();
+  customItems = signal<any[]>([]);
+  combinedItems = computed(() => [
+    ...(this.editModel()?.invoiceItems || []),
+    ...this.customItems()
+  ]);
 
   trackByEntryId(index: number, item: any) {
     return item.id;
@@ -105,6 +111,37 @@ export class AppEditInvoiceComponent {
     this.loadCients();
     this.loadInvoiceDetail();
     this.deletedEntries.clear();
+  }
+
+  addCustomItem(): void {
+    const newItem = {
+      _isCustom: true,
+      tempId: Date.now(),
+      description: '',
+      hours: null,
+      hourly_rate: null,
+      flat_fee: null,
+      cost: 0
+    };
+    this.customItems.update(items => [...items, newItem]);
+    this.recalculateCosts();
+    this.cdr.detectChanges();
+  }
+
+  removeCustomItem(tempId: number): void {
+    this.customItems.update(items => items.filter((i: any) => i.tempId !== tempId));
+    this.recalculateCosts();
+    this.cdr.detectChanges();
+  }
+
+  onCustomItemFieldChange(item: any): void {
+    const flatFee = parseFloat(item.flat_fee) || 0;
+    item.cost = flatFee > 0
+      ? flatFee
+      : (parseFloat(item.hours) || 0) * (parseFloat(item.hourly_rate) || 0);
+    this.customItems.update(items => [...items]);
+    this.recalculateCosts();
+    this.cdr.detectChanges();
   }
 
   addNewEntry(item: any): void {
@@ -165,6 +202,21 @@ export class AppEditInvoiceComponent {
           invoiceItems: data.invoiceItems,
           user: data.user
         });
+
+        if (Array.isArray(data.custom_items) && data.custom_items.length > 0) {
+          this.customItems.set(data.custom_items.map((item: any) => ({
+            _isCustom: true,
+            tempId: item.id,
+            id: item.id,
+            description: item.description || '',
+            hours: parseFloat(item.hours) || 0,
+            hourly_rate: parseFloat(item.hourly_rate) || 0,
+            flat_fee: parseFloat(item.flat_fee) || 0,
+            cost: parseFloat(item.cost) || 0
+          })));
+        } else {
+          this.customItems.set([]);
+        }
 
         this.recalculateCosts();
         this.changedEntries.clear();
@@ -232,6 +284,20 @@ export class AppEditInvoiceComponent {
           this.changedFlatFees.clear();
           this.changedHourlyRates.clear();
           this.deletedEntries.clear();
+          if (Array.isArray(data.custom_items) && data.custom_items.length > 0) {
+            this.customItems.set(data.custom_items.map((item: any) => ({
+              _isCustom: true,
+              tempId: item.id,
+              id: item.id,
+              description: item.description || '',
+              hours: parseFloat(item.hours) || 0,
+              hourly_rate: parseFloat(item.hourly_rate) || 0,
+              flat_fee: parseFloat(item.flat_fee) || 0,
+              cost: parseFloat(item.cost) || 0
+            })));
+          } else {
+            this.customItems.set([]);
+          }
           this.updateFormArrayWithChanges();
           this.recalculateCosts();
           this.loader.complete = true;
@@ -467,9 +533,15 @@ export class AppEditInvoiceComponent {
   calculateTotalAmount(): number {
     if (!this.editModel()?.invoiceItems) return 0;
 
-    return this.editModel().invoiceItems.reduce((total: number, item: any) => {
+    const baseAmount = this.editModel().invoiceItems.reduce((total: number, item: any) => {
       return total + this.calculateItemCost(item);
     }, 0);
+
+    const customAmount = this.customItems().reduce((total: number, item: any) => {
+      return total + (parseFloat(item.cost) || 0);
+    }, 0);
+
+    return baseAmount + customAmount;
   }
 
   onStartTimeChange(entry: any, newStartTime: string): void {
@@ -631,11 +703,9 @@ export class AppEditInvoiceComponent {
       item.cost = this.calculateItemCost(item);
     });
 
-    this.editModel().amount = this.calculateTotalAmount();
-
-    this.invoiceForm.patchValue({
-      amount: this.editModel().amount
-    });
+    const newAmount = this.calculateTotalAmount();
+    this.editModel.update(m => ({ ...m, amount: newAmount }));
+    this.invoiceForm.patchValue({ amount: newAmount });
   }
 
   private updateFormArrayWithChanges(): void {
@@ -736,6 +806,13 @@ export class AppEditInvoiceComponent {
       changed_hourly_rates: [...this.changedHourlyRates],
       changed_flat_fees: [...this.changedFlatFees],
       deleted_entries: [...this.deletedEntries],
+      custom_items: this.customItems().map((item: any) => ({
+        description: item.description,
+        hours: item.hours,
+        hourly_rate: item.hourly_rate,
+        flat_fee: item.flat_fee,
+        cost: item.cost
+      })),
     };
 
     this.invoiceService.updateInvoice(this.id(), data).subscribe({
