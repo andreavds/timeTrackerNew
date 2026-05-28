@@ -78,11 +78,12 @@
                     Inimble.</mat-card-subtitle
                   >
 
-                  <div class="m-t-24">
+                  <div class="m-t-24 plan-buttons-group">
                     <button
                       mat-flat-button
                       color="primary"
-                      (click)="router.navigate(['/apps/pricing'])"
+                      class="plan-btn"
+                      [routerLink]="['/apps/pricing']"
                     >
                       <span class="d-flex align-items-center">
                         Update Plan
@@ -91,8 +92,8 @@
                     </button>
                     <button
                       mat-stroked-button
-                      class="m-l-8"
                       color="warn"
+                      class="plan-btn"
                       *ngIf="(currentPlan?.id !== 1 && effectivePlanStatus !== 'canceled') || (currentPlan?.id === 1 && effectiveClientPlanStatus !== 'canceled' && effectiveClientPlanStatus !== 'inactive')"
                       [disabled]="isLoadingPlanReset"
                       (click)="resetPlan()"
@@ -101,8 +102,8 @@
                     </button>
                     <button
                       mat-stroked-button
-                      class="m-l-8"
                       color="primary"
+                      class="plan-btn"
                       *ngIf="currentPlan?.id !== 1 || (currentPlan?.id === 1 && effectiveClientPlanStatus !== 'inactive')"
                       (click)="editPaymentMethod()"
                     >
