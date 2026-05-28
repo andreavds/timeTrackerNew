@@ -1933,13 +1933,13 @@ export class AppAccountSettingComponent implements OnInit {
   get effectivePlanStatus(): string {
     const sub = this.currentPlanData?.subscription;
     if (sub?.status && sub.status !== 'inactive') return sub.status;
-    return this.currentPlanData?.status ?? '';
+    return 'inactive';
   }
 
   get effectiveClientPlanStatus(): string {
     const sub = this.currentPlanData?.client_plan;
     if (sub?.status && sub.status !== 'inactive') return sub.status;
-    return this.currentPlanData?.status ?? '';
+    return 'inactive';
   }
 
   formatPlanStatus(status: string | undefined | null): string {
