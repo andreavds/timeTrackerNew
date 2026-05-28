@@ -32,6 +32,30 @@
   }
 }
 
+.plan-buttons-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  .plan-btn {
+    flex: 1 1 auto;
+    min-width: 140px;
+    white-space: nowrap;
+
+    .mdc-button__label {
+      justify-content: center;
+    }
+  }
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+
+    .plan-btn {
+      width: 100%;
+    }
+  }
+}
+
 .rounded-circle {
   border-radius: 50%;
   background-size: cover;

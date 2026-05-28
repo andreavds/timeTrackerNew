@@ -46,7 +46,7 @@
                     <div *ngIf="effectivePlanStatus === 'active' && !currentPlanData?.subscription?.cancel_at_period_end && currentPlanData?.subscription?.current_period_end">
                       <strong>Renews on:</strong> {{ currentPlanData?.subscription?.current_period_end | date:'mediumDate' }}
                     </div>
-                    <div *ngIf="planSubscriptionReceipt?.plan_amount"><strong>Billing amount:</strong> {{ planSubscriptionReceipt?.plan_amount | currency:'USD' }}</div>
+                    <div *ngIf="currentPlanData?.plan?.price"><strong>Billing amount:</strong> {{ currentPlanData?.plan?.price | currency:'USD' }}</div>
                   </div>
                   <div class="f-s-14 m-t-8" *ngIf="currentPlan?.id === 1 && currentPlanData?.client_plan?.status && currentPlanData?.client_plan?.status !== 'inactive'">
                     <div class="m-b-4"><strong>Client Plan</strong></div>
@@ -59,6 +59,7 @@
                         {{ formatPlanStatus(effectiveClientPlanStatus) }}
                       </span>
                     </div>
+                    <div *ngIf="currentPlanData?.start_date"><strong>Member since:</strong> {{ currentPlanData?.start_date | date:'mediumDate' }}</div>
                     <div *ngIf="effectiveClientPlanStatus === 'trialing' && currentPlanData?.client_plan?.current_period_end">
                       <strong>Trialing until:</strong> {{ currentPlanData?.client_plan?.current_period_end | date:'mediumDate' }}
                     </div>
@@ -68,7 +69,7 @@
                     <div *ngIf="effectiveClientPlanStatus === 'active' && !currentPlanData?.client_plan?.cancel_at_period_end && currentPlanData?.client_plan?.current_period_end">
                       <strong>Renews on:</strong> {{ currentPlanData?.client_plan?.current_period_end | date:'mediumDate' }}
                     </div>
-                    <div *ngIf="clientSubscriptionReceipt?.plan_amount"><strong>Billing amount:</strong> {{ clientSubscriptionReceipt?.plan_amount | currency:'USD' }}</div>
+                    <div *ngIf="currentPlan?.id === 1"><strong>Billing amount:</strong> {{ 17.99 | currency:'USD' }}</div>
                   </div>
                   <mat-card-subtitle
                     class="f-s-14"
@@ -77,11 +78,12 @@
                     Inimble.</mat-card-subtitle
                   >
 
-                  <div class="m-t-24">
+                  <div class="m-t-24 plan-buttons-group">
                     <button
                       mat-flat-button
                       color="primary"
-                      (click)="router.navigate(['/apps/pricing'])"
+                      class="plan-btn"
+                      [routerLink]="['/apps/pricing']"
                     >
                       <span class="d-flex align-items-center">
                         Update Plan
@@ -90,9 +92,9 @@
                     </button>
                     <button
                       mat-stroked-button
-                      class="m-l-8"
                       color="warn"
-                      *ngIf="currentPlan?.id !== 1 && effectivePlanStatus !== 'canceled'"
+                      class="plan-btn"
+                      *ngIf="(currentPlan?.id !== 1 && effectivePlanStatus !== 'canceled') || (currentPlan?.id === 1 && effectiveClientPlanStatus !== 'canceled' && effectiveClientPlanStatus !== 'inactive')"
                       [disabled]="isLoadingPlanReset"
                       (click)="resetPlan()"
                     >
@@ -100,9 +102,9 @@
                     </button>
                     <button
                       mat-stroked-button
-                      class="m-l-8"
                       color="primary"
-                      *ngIf="currentPlan?.id !== 1"
+                      class="plan-btn"
+                      *ngIf="currentPlan?.id !== 1 || (currentPlan?.id === 1 && effectiveClientPlanStatus !== 'inactive')"
                       (click)="editPaymentMethod()"
                     >
                       Edit Payment Method

@@ -1,5 +1,5 @@
-<div class="pricing-card" [class.popular]="plan.isPopular">
-  @if (plan.isPopular) {
+<div class="pricing-card" [class.popular]="plan.isPopular" [class.current]="isCurrentPlan">
+  @if (plan.isPopular && !isCurrentPlan) {
     <div class="popular-badge">Most Popular</div>
   }
   @if (isCurrentPlan) {
