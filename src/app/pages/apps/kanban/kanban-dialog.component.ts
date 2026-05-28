@@ -81,14 +81,15 @@ export class AppKanbanDialogComponent implements OnInit {
   firstAttachmentImage: any = null;
   pastedAttachments: any[] = [];
   @ViewChild('commentTextarea') commentTextarea?: ElementRef<HTMLTextAreaElement>;
-  @ViewChild('descriptionEditor') descriptionEditor!: ElementRef;
   @ViewChild('commentEditor') commentEditor?: ElementRef<HTMLDivElement>;
+  @ViewChild('descriptionEditor') descriptionEditor!: ElementRef;
   formTouched: boolean = false;
   isSaving: boolean = false;
   isOrphan: boolean = false;
   userId: number | null = null;
   selectedEmployeeId: number | null = null;
   imageUrls: { [key: string]: string } = {};
+  isAdmin: boolean = localStorage.getItem('role') == '1';
 
   constructor(
     public dialogRef: MatDialogRef<AppKanbanDialogComponent>,
@@ -310,8 +311,57 @@ export class AppKanbanDialogComponent implements OnInit {
 
   loadComments() {
     this.ratingsService.getComments(this.local_data.id).subscribe(res => {
-      this.comments = res.map(c => ({ ...c, isEditing: false, editText: c.comment }));
+      this.comments = res.map(c => ({
+        ...c,
+        isEditing: false,
+        editText: c.comment,
+        editedAt: c.editedAt || this.extractEditedAtFromHtml(c.comment),
+      }));
     });
+  }
+
+  getCommentEditedAt(comment: any): Date | null {
+    if (comment?.editedAt) {
+      const editedAt = new Date(comment.editedAt);
+      return Number.isNaN(editedAt.getTime()) ? null : editedAt;
+    }
+
+    return this.extractEditedAtFromHtml(comment?.comment);
+  }
+
+  private extractEditedAtFromHtml(html: string | null | undefined): Date | null {
+    if (!html) return null;
+
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const marker = div.querySelector('span.comment-edited-at[data-edited-at]');
+    const editedAtValue = marker?.getAttribute('data-edited-at');
+    if (!editedAtValue) return null;
+
+    const editedAt = new Date(editedAtValue);
+    return Number.isNaN(editedAt.getTime()) ? null : editedAt;
+  }
+
+  private stripEditedAtMarker(html: string): string {
+    const div = document.createElement('div');
+    div.innerHTML = html || '';
+    div.querySelectorAll('span.comment-edited-at[data-edited-at]').forEach(marker => marker.remove());
+    return div.innerHTML;
+  }
+
+  private appendEditedAtMarker(html: string, editedAt: Date): string {
+    const sanitizedHtml = this.stripEditedAtMarker(html);
+    const div = document.createElement('div');
+    div.innerHTML = sanitizedHtml;
+
+    const marker = document.createElement('span');
+    marker.className = 'comment-edited-at';
+    marker.setAttribute('data-edited-at', editedAt.toISOString());
+    marker.setAttribute('aria-hidden', 'true');
+    marker.style.display = 'none';
+    div.appendChild(marker);
+
+    return div.innerHTML;
   }
 
   doAction(): void {
@@ -326,6 +376,13 @@ export class AppKanbanDialogComponent implements OnInit {
     this.isSaving = true;
 
     this.local_data.task_attachments = this.attachments;
+    this.local_data.comments = this.comments
+      .filter(c => c.isPending && c.comment && String(c.comment).trim())
+      .map(c => ({
+        comment: c.comment,
+        user_id: c.user_id,
+        editedAt: c.editedAt || null,
+      }));
 
     if (this.dueDateTime) {
       this.local_data.due_date = this.dueDateTime;
@@ -391,6 +448,79 @@ export class AppKanbanDialogComponent implements OnInit {
     }
   }
 
+  selectMention(user: any) {
+    const textarea = this.commentTextarea?.nativeElement;
+    if (!textarea) return;
+
+    const value = this.commentText || '';
+    const before = value.substring(0, this.mentionStartPos);
+    const after = value.substring(textarea.selectionStart);
+
+    const mentionHtml = `<span class="mention" data-user-id="${user.id}" contenteditable="false">@${user.name} ${user.last_name}</span>`;
+    this.commentText = before + mentionHtml + ' ' + after;
+
+    this.showMentionList = false;
+
+    setTimeout(() => {
+      textarea.focus();
+      const newPosition = before.length + mentionHtml.length + 1;
+      textarea.selectionStart = newPosition;
+      textarea.selectionEnd = newPosition;
+    });
+  }
+
+  getMentionMarkup(user: any): string {
+    return `@${user.name}${user.last_name}`;
+  }
+
+  submitComment() {
+    if (this.commentEditor?.nativeElement) {
+      this.commentText = (this.commentEditor.nativeElement.innerHTML || '').trim();
+    }
+
+    if (!this.commentText.trim()) return;
+
+    const mentioned_user_ids = this.extractMentionIds(this.commentText);
+
+    if (this.selectedComment) {
+      this.editComment(this.selectedComment, this.commentText, mentioned_user_ids);
+      this.selectedComment = null;
+      this.clearCommentEditor();
+      this.showSnackbar('Comment updated!');
+      return;
+    }
+
+    if (!this.local_data.id) {
+      const currentUser = this.users.find(u => u.id == this.userId) || {
+        name: localStorage.getItem('name') || 'Unknown',
+        last_name: localStorage.getItem('last_name') || 'User',
+      };
+      const localComment = {
+        comment: this.commentText,
+        user_id: this.userId,
+        createdAt: new Date(),
+        user: { name: currentUser.name, last_name: currentUser.last_name },
+        isPending: true,
+      };
+      this.comments.push(localComment);
+      this.local_data.comments = this.comments.filter(c => c.isPending);
+      this.clearCommentEditor();
+      this.showSnackbar('Comment added!');
+      return;
+    }
+
+    const payload = {
+      rating_id: this.local_data.id,
+      comment: this.commentText,
+      mentioned_user_ids,
+    };
+    this.ratingsService.addComment(payload).subscribe(newComment => {
+      this.comments.push(newComment);
+      this.clearCommentEditor();
+      this.showSnackbar('Comment added!');
+    });
+  }
+
   onDialogScroll() {
     this.updateMentionPopupPosition();
   }
@@ -431,6 +561,10 @@ export class AppKanbanDialogComponent implements OnInit {
   }
 
   detectMention(target: 'description' | 'comment') {
+    if (target === 'comment' && this.commentEditor?.nativeElement) {
+      this.commentText = (this.commentEditor.nativeElement.innerHTML || '').trim();
+    }
+
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) {
       this.closeMentionPopup();
@@ -551,6 +685,8 @@ export class AppKanbanDialogComponent implements OnInit {
 
     if (this.mentionTarget === 'description') {
       this.updateRecommendationsValue();
+    } else if (this.mentionTarget === 'comment' && this.commentEditor?.nativeElement) {
+      this.commentText = (this.commentEditor.nativeElement.innerHTML || '').trim();
     }
     this.closeMentionPopup();
   }
@@ -572,39 +708,6 @@ export class AppKanbanDialogComponent implements OnInit {
     return Array.from(new Set(ids));
   }
 
-  submitComment() {
-    const html = (this.commentEditor?.nativeElement.innerHTML || '').trim();
-    const text = (this.commentEditor?.nativeElement.innerText || '').trim();
-    if (!text) return;
-
-    const mentioned_user_ids = this.extractMentionIds(html);
-
-    if (this.selectedComment) {
-      this.editComment(this.selectedComment, html, mentioned_user_ids);
-      this.selectedComment = null;
-      this.clearCommentEditor();
-      this.showSnackbar('Comment updated!');
-    } else {
-      const payload = {
-        rating_id: this.local_data.id,
-        comment: html,
-        mentioned_user_ids,
-      };
-      this.ratingsService.addComment(payload).subscribe(newComment => {
-        this.comments.push(newComment);
-        this.clearCommentEditor();
-        this.showSnackbar('Comment added!');
-      });
-    }
-  }
-
-  private clearCommentEditor() {
-    this.commentText = '';
-    if (this.commentEditor?.nativeElement) {
-      this.commentEditor.nativeElement.innerHTML = '';
-    }
-  }
-
   hasCommentText(): boolean {
     return !!(this.commentEditor?.nativeElement.innerText || '').trim();
   }
@@ -613,7 +716,9 @@ export class AppKanbanDialogComponent implements OnInit {
     this.selectedComment = comment;
     setTimeout(() => {
       if (this.commentEditor?.nativeElement) {
-        this.commentEditor.nativeElement.innerHTML = comment.comment || '';
+        const editHtml = this.stripEditedAtMarker(comment.comment || '');
+        this.commentEditor.nativeElement.innerHTML = editHtml;
+        this.commentText = editHtml;
         this.commentEditor.nativeElement.focus();
       }
     });
@@ -621,17 +726,59 @@ export class AppKanbanDialogComponent implements OnInit {
 
   editComment(comment: any, newHtml: string, mentioned_user_ids: number[] = []) {
     if (!newHtml.trim()) return;
-    this.ratingsService.updateComment(comment.id, newHtml, mentioned_user_ids).subscribe(updated => {
+    if (comment.isPending) {
+      const editedAt = new Date();
+      comment.comment = this.appendEditedAtMarker(newHtml, editedAt);
+      comment.editedAt = editedAt;
+      return;
+    }
+    const editedAt = new Date();
+    const commentHtml = this.appendEditedAtMarker(newHtml, editedAt);
+    this.ratingsService.updateComment(comment.id, commentHtml, mentioned_user_ids).subscribe(updated => {
       comment.comment = updated.comment;
+      comment.editedAt = this.extractEditedAtFromHtml(updated.comment) || editedAt;
       comment.isEditing = false;
     });
   }
 
-  deleteComment(commentId: number) {
-    this.ratingsService.deleteComment(commentId).subscribe(() => {
-      this.comments = this.comments.filter(c => c.id !== commentId);
-      this.showSnackbar('Comment deleted!');
+  deleteComment(comment: any) {
+    if (!comment) return;
+
+    const del = this.dialog.open(ModalComponent, {
+      data: {
+        action: 'delete',
+        subject: 'comment',
+        message: 'This comment will be permanently deleted.',
+      },
     });
+
+    del.afterClosed().subscribe(result => {
+      if (!result) return;
+
+      if (comment.isPending) {
+        this.comments = this.comments.filter(c => c !== comment);
+        this.local_data.comments = this.comments.filter(c => c.isPending);
+        this.showSnackbar('Comment deleted!');
+        return;
+      }
+
+      this.ratingsService.deleteComment(comment.id).subscribe(() => {
+        this.comments = this.comments.filter(c => c.id !== comment.id);
+        this.showSnackbar('Comment deleted!');
+      });
+    });
+  }
+
+  private clearCommentEditor(): void {
+    this.commentText = '';
+    if (this.commentEditor?.nativeElement) {
+      this.commentEditor.nativeElement.innerHTML = '';
+    }
+    if (this.commentTextarea?.nativeElement) {
+      try {
+        this.commentTextarea.nativeElement.value = '';
+      } catch {}
+    }
   }
 
   async onPaste(event: ClipboardEvent) {
