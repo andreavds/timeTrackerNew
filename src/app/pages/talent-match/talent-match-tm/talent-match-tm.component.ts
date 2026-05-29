@@ -95,6 +95,7 @@ export class AppTalentMatchTmComponent implements OnInit {
 			this.tableLoading = false;
 		}
 		});
+	console.log("Delete this after testing");
   }
 
 	filterPositionsByCurrentPosition(): void {
