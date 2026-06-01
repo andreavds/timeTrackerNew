@@ -1,7 +1,7 @@
 <mat-toolbar class="topbar gap-8">
   <!-- --------------------------------------------------------------- -->
   <!-- Desktop Menu -->
-  @if(showToggle) {
+  @if(showToggle && !isRestrictedClient) {
   <button
     mat-icon-button
     (click)="toggleCollapsed.emit()"
@@ -12,7 +12,7 @@
   }
 
   <!-- Mobile Menu -->
-  @if(!showToggle) {
+  @if(!showToggle && !isRestrictedClient) {
   <button
     mat-icon-button
     (click)="toggleMobileNav.emit()"
@@ -126,6 +126,9 @@
         <span class="point bg-primary"></span>
       </div>
     </a>
+    <a mat-button [routerLink]="['/apps/pricing']" *ngIf="role == '3'">
+      Pricing
+    </a>
     <a mat-button [routerLink]="['/apps/permission']" *ngIf="role == '1'">
       Permissions
     </a>
@@ -169,7 +172,6 @@
     mat-icon-button
     (click)="toggleMobileFilterNav.emit()"
     class="d-flex d-lg-none justify-content-center"
-    *ngIf="!isRestrictedClient"
   >
     <i-tabler name="grid-dots" class="icon-20 d-flex"></i-tabler>
   </button>

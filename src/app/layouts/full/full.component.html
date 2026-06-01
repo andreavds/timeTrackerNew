@@ -3,7 +3,7 @@
   autosize
   autoFocus
   [ngClass]="{
-  'sidebarNav-mini': options.sidenavCollapsed && options.navPos !== 'top' &&  !resView,  
+  'sidebarNav-mini': options.sidenavCollapsed && options.navPos !== 'top' && !resView,  
   'sidebarNav-horizontal': options.horizontal,
   cardBorder: options.cardBorder,  
 }"
@@ -12,7 +12,7 @@
   <!-- ============================================================== -->
   <!-- Vertical Sidebar -->
   <!-- ============================================================== -->
-  @if (!options.horizontal) {
+  @if (!options.horizontal && clientHasTeam) {
   <mat-sidenav
     #leftsidenav
     [mode]="isOver ? 'over' : 'side'"
@@ -132,8 +132,7 @@
   <!-- ============================================================== -->
   <mat-sidenav-content
     id="app-main-content"
-    class="contentWrapper"
-    [ngClass]="{ 'p-l-24 p-r-24': !options.horizontal }"
+    [ngClass]="{ 'p-l-24 p-r-24': !options.horizontal, 'contentWrapper': options.horizontal && clientHasTeam}"
     #content
   >
     <!-- horizontal header -->
@@ -223,6 +222,7 @@
       </button>
     </div>
     <div class="p-x-24">
+      @if(!isRestrictedClient) {
       <a
         [routerLink]="
           role === '1'
@@ -235,7 +235,8 @@
       >
         <span class="f-s-15 f-w-500 m-l-8">Dashboard</span>
       </a>
-      @if(role !== '2') {
+      }
+      @if(role !== '2' && !isRestrictedClient) {
       <a
         [routerLink]="['/dashboards/reports']"
         class="d-flex align-items-center text-decoration-none p-y-16"
@@ -257,7 +258,7 @@
         </mat-expansion-panel-header>
         <div>
           <div class="row">
-            @for(appdd of apps; track appdd.id) {
+            @for(appdd of visibleApps; track appdd.id) {
             <div class="col-12 text-hover-primary">
               <a
                 [routerLink]="[appdd.link]"
@@ -294,6 +295,7 @@
       </mat-expansion-panel>
     </mat-accordion>
 
+    @if(!isRestrictedClient) {
     <div class="p-x-24">
       <a
         [routerLink]="['/apps/notifications']"
@@ -301,14 +303,7 @@
       >
         <span class="f-s-15 f-w-500 m-l-8">Notifications</span>
       </a>
-      @if(role !== '2') {
-      <!-- <a
-        [routerLink]="['/apps/invoice']"
-        class="d-flex align-items-center text-decoration-none p-y-16"
-      >
-        <span class="f-s-15 f-w-500 m-l-8">Invoice</span>
-      </a> -->
-      }
     </div>
+    }
   </div>
 </mat-drawer>

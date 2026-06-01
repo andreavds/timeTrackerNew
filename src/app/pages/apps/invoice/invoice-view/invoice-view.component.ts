@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, computed } from '@angular/core';
 import { InvoiceService } from 'src/app/services/apps/invoice/invoice.service';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MaterialModule } from 'src/app/material.module';
@@ -28,6 +28,14 @@ export class AppInvoiceViewComponent {
   invoiceDetail = signal<any>(null);
   locationLinksMap: { [entryId: number]: Array<{ label: string; url: string; title: string }> } = {};
   itemsDisplayedColumns: string[] = ['description', 'hours', 'hourly-rate', 'flat-fee', 'cost'];
+  combinedItems = computed(() => {
+    const items = this.invoiceDetail()?.invoiceItems || [];
+    const customItems = (this.invoiceDetail()?.custom_items || []).map((item: any) => ({
+      ...item,
+      _isCustom: true
+    }));
+    return [...items, ...customItems];
+  });
   itemsFooterDisplayedColumns = ['footer-sub-total', 'footer-amount', 'empty-column'];
   itemsSecondFooterDisplayedColumns = ['footer-total', 'footer-amount', 'empty-column'];
   ratingsDisplayedColumns: string[] = ['day', 'date', 'clock-in', 'clock-out', 'total-hours', 'comments'];
@@ -141,6 +149,24 @@ export class AppInvoiceViewComponent {
         console.error('Error approving invoice:', error);
       }
     });
+  }
+
+  calculateTotalAmount(): number {
+    const invoice = this.invoiceDetail();
+    if (!invoice) return 0;
+
+    const baseAmount = (invoice.invoiceItems || []).reduce((total: number, item: any) => {
+      const hours = item.hours || 0;
+      const hourlyRate = item.hourly_rate || 0;
+      const flatFee = parseFloat(item.flat_fee) || 0;
+      return total + (hours * hourlyRate) + flatFee;
+    }, 0);
+
+    const customAmount = (invoice.custom_items || []).reduce((total: number, item: any) => {
+      return total + (parseFloat(item.cost) || 0);
+    }, 0);
+
+    return baseAmount + customAmount;
   }
 
   decimalToTime(decimal: number): string {

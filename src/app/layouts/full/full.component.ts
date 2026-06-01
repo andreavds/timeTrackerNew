@@ -120,9 +120,22 @@ export class FullComponent implements OnInit {
     return this.resView;
   }
 
+  get isRestrictedClient(): boolean {
+    return this.role === '3' && !this.clientAccessService.hasAccess();
+  }
+
+  get visibleApps() {
+    if (this.isRestrictedClient) {
+      return this.apps.filter(
+        (app) => app.link === '/apps/talent-match' || app.link === '/apps/pricing',
+      );
+    }
+    return this.apps;
+  }
+
   // for mobile app sidebar
   apps: apps[] = [
-    // ...(this.role != '1' && this.role != '4' 
+    // ...(this.role != '1' && this.role != '4'
     // ? [{
     //     id: 12,
     //     img: '/assets/images/svgs/icon-speech-bubble.svg',
@@ -138,6 +151,15 @@ export class FullComponent implements OnInit {
       subtitle: 'Find top talent',
       link: '/apps/talent-match',
     },
+    ...(this.role === '3'
+    ? [{
+        id: 18,
+        img: '/assets/images/svgs/icon-dd-invoice.svg',
+        title: 'Pricing',
+        subtitle: 'View pricing plans',
+        link: '/apps/pricing',
+      }]
+    : []),
     // ...(this.role == '3'
     // ? [{
     //     id: 14,
@@ -278,6 +300,10 @@ export class FullComponent implements OnInit {
         this.jitsiMinimized = false;
       });
     } catch (e) {}
+
+    if (!this.clientHasTeam) {
+      this.toggleCollapsed();
+    }
   }
 
   ngOnDestroy() {
@@ -342,5 +368,9 @@ export class FullComponent implements OnInit {
         }
       },
     });
+  }
+
+  public get clientHasTeam(): boolean {
+    return this.clientAccessService.hasAccess();
   }
 }

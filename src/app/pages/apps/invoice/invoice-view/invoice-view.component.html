@@ -36,33 +36,39 @@
               <p>Invoice number: {{ invoiceDetail()?.invoice_number || invoiceDetail()?.id }}</p>
               <p>Terms: {{ invoiceDetail()?.terms }}</p>
             </div>
-            <div class="m-t-20 W-100">
+            <div class="m-t-20 w-100">
               <!-- INVOICE ITEMS LIST -->
-              <table mat-table [dataSource]="invoiceDetail()?.invoiceItems" class="w-100" id="invoice-items-table">
+              <table mat-table [dataSource]="combinedItems()" class="w-100" id="invoice-items-table">
                 <ng-container matColumnDef="description">
                   <th mat-header-cell *matHeaderCellDef>Description</th>
-                  <td mat-cell *matCellDef="let element"><strong>{{ element.name }} {{ element.last_name }}</strong> - {{ element.position || 'Remote Assistant' }} ({{
-                    element.full_time ? 'Full-Time' : 'Part-Time' }})</td>
+                  <td mat-cell *matCellDef="let element">
+                    <ng-container *ngIf="!element._isCustom">
+                      <strong>{{ element.name }} {{ element.last_name }}</strong> - {{ element.position || 'Remote Assistant' }} ({{ element.full_time ? 'Full-Time' : 'Part-Time' }})
+                    </ng-container>
+                    <ng-container *ngIf="element._isCustom">
+                      {{ element.description }}
+                    </ng-container>
+                  </td>
                 </ng-container>
 
                 <ng-container matColumnDef="hours">
                   <th mat-header-cell *matHeaderCellDef>Hours</th>
-                  <td mat-cell *matCellDef="let element">{{ element.hours | number: '1.0-2' }}</td>
+                  <td mat-cell *matCellDef="let element">{{ (element.hours || 0) | number: '1.0-2' }}</td>
                 </ng-container>
 
                 <ng-container matColumnDef="hourly-rate">
                   <th mat-header-cell *matHeaderCellDef>Hourly Rate</th>
-                  <td mat-cell *matCellDef="let element">{{ element.hourly_rate | currency: 'USD' }}</td>
+                  <td mat-cell *matCellDef="let element">{{ (element.hourly_rate || 0) | currency: 'USD' }}</td>
                 </ng-container>
 
                 <ng-container matColumnDef="flat-fee">
                   <th mat-header-cell *matHeaderCellDef>Flat Fee</th>
-                  <td mat-cell *matCellDef="let element">{{ element.flat_fee | currency: 'USD' }}</td>
+                  <td mat-cell *matCellDef="let element">{{ (element.flat_fee || 0) | currency: 'USD' }}</td>
                 </ng-container>
 
                 <ng-container matColumnDef="cost">
                   <th mat-header-cell *matHeaderCellDef>Cost</th>
-                  <td mat-cell *matCellDef="let element">{{ element.cost | currency: 'USD' }}</td>
+                  <td mat-cell *matCellDef="let element">{{ (element.cost || 0) | currency: 'USD' }}</td>
                 </ng-container>
 
                 <ng-container matColumnDef="footer-sub-total">
@@ -75,7 +81,7 @@
 
                 <ng-container matColumnDef="footer-amount">
                   <td mat-footer-cell *matFooterCellDef>
-                    {{ invoiceDetail()?.amount + (invoiceDetail()?.amount * tax) | currency: 'USD' }}
+                    {{ calculateTotalAmount() | currency: 'USD' }}
                   </td>
                 </ng-container>
 
