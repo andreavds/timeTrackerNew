@@ -17,6 +17,10 @@ export class EmployeesService {
     return this.http.get<any[]>(`${this.API_URI}`);
   }
 
+  public getTeamCount(): Observable<{ count: number }> {
+    return this.http.get<{ count: number }>(`${this.API_URI}/team-count`);
+  }
+
   public getOrphanEmployees(): Observable<any[]> {
     return this.http.get<any[]>(`${this.API_URI}/orphan`);
   }

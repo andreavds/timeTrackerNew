@@ -22,11 +22,11 @@ export class ClientAccessService {
       return true;
     }
     try {
-      const [employees, clientStatus] = await Promise.all([
-        lastValueFrom(this.employeesService.get()).catch(() => [] as any[]),
+      const [teamCount, clientStatus] = await Promise.all([
+        lastValueFrom(this.employeesService.getTeamCount()).catch(() => ({ count: 0 })),
         lastValueFrom(this.subscriptionService.getClientStatus()).catch(() => ({ status: 'inactive' })),
       ]);
-      const employeesExist = Array.isArray(employees) && employees.length > 0;
+      const employeesExist = ((teamCount as any).count ?? 0) > 0;
       const hasSubscription = ['active', 'trialing'].includes((clientStatus as any).status);
       const hasAccess = employeesExist || hasSubscription;
       this._hasEmployees.set(employeesExist);
