@@ -33,10 +33,10 @@ export class TalentMatchIntakeComponent implements OnInit {
   ngOnInit() {
     const req = this.required ? [Validators.required] : [];
     this.intakeForm = this.fb.group({
-      name: [this.initialValues.name ?? '', req],
-      email: [this.initialValues.email ?? '', [...req, Validators.email]],
+      name: [this.initialValues.name ?? ''],
+      email: [this.initialValues.email ?? '', [Validators.email]],
       phone: [this.initialValues.phone ?? '', [...req, Validators.pattern(/^[\d\s\+\-\(\)\.]{7,20}$/)]],
-      company: [this.initialValues.company ?? '', req]
+      company: [this.initialValues.company ?? '']
     });
     this.formReady.emit(this.intakeForm);
   }
