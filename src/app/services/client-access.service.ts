@@ -52,7 +52,7 @@ export class ClientAccessService {
         }
       }
 
-      const hasAccess = employeesExist || hasSubscription;
+      const hasAccess = employeesExist && hasSubscription;
       this._hasEmployees.set(employeesExist);
       this._hasAccess.set(hasAccess);
       localStorage.setItem('clientHasTeam', hasAccess ? 'true' : 'false');
