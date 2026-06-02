@@ -28,11 +28,11 @@ export class ClientAccessService {
     }
     try {
       const [employees, company] = await Promise.all([
-        lastValueFrom(this.employeesService.getTeamCount()).catch(() => ({ count: 0 })),
+        lastValueFrom(this.employeesService.get()).catch(() => [] as any[]),
         lastValueFrom(this.companiesService.getByOwner()).catch(() => null),
       ]);
 
-      const employeesExist = ((employees as any).count ?? 0) > 0;
+      const employeesExist = Array.isArray(employees) && employees.length > 0;
 
       let hasSubscription = false;
       if (company?.company_id) {
