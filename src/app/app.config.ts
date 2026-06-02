@@ -25,6 +25,8 @@ import { ReportsService } from './services/reports.service';
 import { WebSocketService } from './services/socket/web-socket.service';
 import { JwtInterceptor } from './interceptors/jwt.interceptor';
 import { FingerprintInterceptor } from './interceptors/fingerprint.interceptor';
+import { AuthErrorInterceptor } from './interceptors/auth-error.interceptor';
+import { AuthService } from './services/auth.service';
 
 import { ToastrModule } from 'ngx-toastr';
 import { provideToastr } from 'ngx-toastr';
@@ -94,13 +96,19 @@ export const appConfig: ApplicationConfig = {
       withComponentInputBinding()
     ),
     provideHttpClient(
-      withInterceptors([FingerprintInterceptor, JwtInterceptor])
+      withInterceptors([FingerprintInterceptor, JwtInterceptor, AuthErrorInterceptor])
     ),
     ...dialogProviders,
     provideClientHydration(),
     provideAnimationsAsync(),
     provideFirebaseApp(() => initializeApp(environment.firebaseConfig)),
     provideAppInitializer(() => inject(ClientAccessService).refresh()),
+    provideAppInitializer(() => {
+      const auth = inject(AuthService);
+      if (localStorage.getItem('jwt')) {
+        auth.checkTokenExpiration();
+      }
+    }),
     provideAuth(() => getAuth()),
     importProvidersFrom(
       FormsModule,
