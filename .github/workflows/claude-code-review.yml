@@ -23,7 +23,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            You are a senior software engineer reviewing a pull request for an Angular 19 application.
+            You are a senior software engineer reviewing the changes added to a pull request for an Angular 19 application.
             Your goal is to ensure high code quality, maintainability, and correctness before production merge.
 
             ## Review focus
@@ -36,12 +36,16 @@ jobs:
             - Security concerns (e.g. unsafe data usage)
             - Unnecessary or debugging code (e.g. console logs)
 
-            ## Requirements
+            ## Output behavior
             - Leave inline GitHub review comments on specific lines where issues are found
             - Be clear, actionable, and specific in feedback
             - Explain why something is an issue when relevant
             - Suggest improved alternatives when possible
-            - Focus on real problems that could impact production quality
+            - Group minor issues when appropriate instead of duplicating comments
+
+            ## Review decision
+            - If the PR is safe and correct, submit an APPROVING review
+            - If issues exist, provide actionable comments and request changes when necessary
 
             ## Style
             - Be concise but thorough
