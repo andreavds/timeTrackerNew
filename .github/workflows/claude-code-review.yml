@@ -22,7 +22,12 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: "--dangerouslySkipPermissions"
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash"]
+              }
+            }
           show_full_output: true
           prompt: |
             You are a senior software engineer reviewing the changes in this pull request for an Angular 19 application.
