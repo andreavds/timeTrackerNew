@@ -88,6 +88,7 @@ export class AppTalentMatchTmComponent implements OnInit {
 		next: (positions: Positions[]) => {
 			this.allPositions = positions;
 			this.filterPositionsByCurrentPosition();
+			console.log('Test (remove this after testing)')
 		},
 		error: err => {
 			console.error('Error loading positions', err);
@@ -104,10 +105,10 @@ export class AppTalentMatchTmComponent implements OnInit {
 				if (!application) {
 					console.warn('No application found for user');
 					this.rows = [];
-					this.tableLoading = false;
 					return;
 				}
-				this.applicationId = application.id;
+				console.log(application.id);
+				this.applicationId = application;
 				this.currentApplicationPositionId = application.position_id;
 				const currentPosition = application.current_position;
 				if (!currentPosition) {
