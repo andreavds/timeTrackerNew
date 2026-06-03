@@ -22,11 +22,14 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          allowed_tools: "mcp__github__create_pull_request_review,mcp__github__list_pull_request_files,mcp__github__get_pull_request,mcp__github__list_review_comments_on_pull_request"
+          claude_args: "--dangerouslySkipPermissions"
           show_full_output: true
           prompt: |
-            You are a senior software engineer reviewing the changes added to a pull request for an Angular 19 application.
+            You are a senior software engineer reviewing the changes in this pull request for an Angular 19 application.
             Your goal is to ensure high code quality, maintainability, and correctness before production merge.
+
+            IMPORTANT: Do NOT invoke the /review slash command or any skill. You already have the PR diff and context.
+            Instead, use `gh pr diff` and `gh pr view` directly via Bash, then post a review with `gh pr review --request-changes` and inline comments.
 
             ## Review focus
             - Angular best practices
@@ -46,8 +49,8 @@ jobs:
             - Group minor issues when appropriate instead of duplicating comments
 
             ## Review decision
-            - If no issues are found, explicitly submit an APPROVING review
-            - If any issue exists, request changes with inline comments
+            - If no issues are found, submit an APPROVING review: `gh pr review --approve`
+            - If any issue exists, request changes: `gh pr review --request-changes --body "..."` with inline comments
 
             ## Style
             - Be concise but thorough
