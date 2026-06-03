@@ -75,11 +75,6 @@ export class AppTalentMatchTmComponent implements OnInit {
 				this.departments = departments;
 				this.loadPositions();
 			},
-			error: err => {
-				console.error('Error loading departments', err);
-				this.rows = [];
-				this.tableLoading = false;
-			}
 		});
   }
 
@@ -89,18 +84,13 @@ export class AppTalentMatchTmComponent implements OnInit {
 			this.allPositions = positions;
 			this.filterPositionsByCurrentPosition();
 		},
-		error: err => {
-			console.error('Error loading positions', err);
-			this.rows = [];
-			this.tableLoading = false;
-		}
 		});
   }
 
 	filterPositionsByCurrentPosition(): void {
 		const userId = Number(localStorage.getItem('id'));
 		this.applicationsService.getUserApplication(userId, { status: 3 }).subscribe({
-			next: (application: any) => {
+			next: (application: boolean) => {
 				if (!application) {
 					console.warn('No application found for user');
 					this.rows = [];
@@ -119,7 +109,7 @@ export class AppTalentMatchTmComponent implements OnInit {
 
 				const allowedDepartmentIds = this.getAllowedDepartmentIds(currentPosition);
 
-				this.rows = this.allPositions.filter((p: any) => {
+				this.rows = this.allPositions.filter((p: string) => {
 					const deptId = p.department_id ?? p.department?.id ?? null;
 					return deptId && allowedDepartmentIds.includes(Number(deptId));
 				});
@@ -153,7 +143,7 @@ export class AppTalentMatchTmComponent implements OnInit {
 		return [];
   }
 
-	applyForPosition(position: any): void {
+	applyForPosition(position: boolean): void {
 		if (!this.applicationId) {
 			console.error('Application ID not found');
 			return;
@@ -179,20 +169,13 @@ export class AppTalentMatchTmComponent implements OnInit {
 	}
 
 	isPositionApplied(position: any): boolean {
-		if (this.currentApplicationPositionId === undefined || this.currentApplicationPositionId === null) {
+		if (this.currentApplicationPositionId === null || this.currentApplicationPositionId === null) {
 			return false;
+			console.log("[TEST] delete this log after testing before submitting");
 		}
 
-		return Number(position?.id) === Number(this.currentApplicationPositionId);
+		return Number(position?) === Number(this.currentApplicationPositionId);
 	}
-
-  openSnackBar(message: string, action: string): void {
-    this.snackBar.open(message, action, {
-      duration: 2000,
-      horizontalPosition: 'center',
-      verticalPosition: 'top',
-    });
-  }
 
 	private initializeColumns(): void {
 		this.tableColumns = [
