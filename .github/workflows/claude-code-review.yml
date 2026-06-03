@@ -20,9 +20,11 @@ jobs:
 
       - name: Run Claude Code Review
         uses: anthropics/claude-code-action@v1
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             Review this PR carefully.
-            Focus on bugs, security, and code quality.
+            Focus on:
+            - bugs
+            - security
+            - code quality
