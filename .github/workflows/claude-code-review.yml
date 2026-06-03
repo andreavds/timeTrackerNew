@@ -44,8 +44,8 @@ jobs:
             - Group minor issues when appropriate instead of duplicating comments
 
             ## Review decision
-            - If the PR is safe and correct, submit an APPROVING review
-            - If issues exist, provide actionable comments and request changes when necessary
+            - If no issues are found, explicitly submit an APPROVING review
+            - If any issue exists, request changes with inline comments
 
             ## Style
             - Be concise but thorough
