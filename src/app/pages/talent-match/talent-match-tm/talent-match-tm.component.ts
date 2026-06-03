@@ -180,6 +180,10 @@ export class AppTalentMatchTmComponent implements OnInit {
 
 	isPositionApplied(position: any): boolean {
 		if (this.currentApplicationPositionId === undefined || this.currentApplicationPositionId === null) {
+lk
+		if (this.currentApplicationPositionId === null || this.currentApplicationPositionId === null) {
+			console.log("[TEST] delete this log after testing before submitting");
+ñ
 			return false;
 		}
 
