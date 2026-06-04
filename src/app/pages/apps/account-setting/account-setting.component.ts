@@ -1365,6 +1365,83 @@ export class AppAccountSettingComponent implements OnInit {
     });
   }
 
+  resetPlan(): void {
+    const planId = this.currentPlanData?.plan?.id;
+    const periodEnd = planId === 1
+      ? this.currentPlanData?.client_plan?.current_period_end
+      : this.currentPlanData?.subscription?.current_period_end;
+    const endDate = periodEnd
+      ? new Date(periodEnd).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : 'the end of the billing period';
+    const dialogRef = this.dialog.open(ModalComponent, {
+      width: '520px',
+      data: {
+        action: 'cancel',
+        subject: `plan (${this.currentPlan.name})`,
+        message: `You will have access until ${endDate}. After that you will lose your benefits and premium functionalities.`
+      }
+    });
+    dialogRef.afterClosed().subscribe(result => {
+      if (!result) return;
+      this.isLoadingPlanReset = true;
+      const serviceTypeMap: Record<number, string> = { 2: 'essential_plan', 3: 'professional_plan', 4: 'executive_plan', 5: 'ai_legal_agent_plan' };
+      const serviceType = serviceTypeMap[planId as number] ?? 'client_plan';
+      this.subscriptionService.cancelSubscription({ serviceType }).subscribe({
+        next: (response: any) => {
+          this.openSnackBar('Your plan has been canceled successfully. Access remains until the end of the billing period.', 'Close');
+          this.refreshCurrentPlanForCurrentUser();
+          this.isLoadingPlanReset = false;
+        },
+        error: (error) => {
+          console.error('Error canceling plan:', error);
+          this.openSnackBar('Error canceling plan. Please try again.', 'Close');
+          this.isLoadingPlanReset = false;
+        }
+      });
+    });
+  }
+
+  editPaymentMethod(): void {
+    this.subscriptionService.createCustomerPortal().subscribe({
+      next: (res) => {
+        if (res?.url) {
+          window.location.href = res.url;
+        } else {
+          this.openSnackBar('Unable to open payment portal. Please try again.', 'Close');
+        }
+      },
+      error: (err) => {
+        console.error('Error opening customer portal:', err);
+        this.openSnackBar('Error opening payment portal. Please try again.', 'Close');
+      }
+    });
+  }
+
+  private getCompanyId(): number | null {
+    return this.user?.company?.company_id ?? this.user?.company?.id ?? this.user?.employee?.company_id ?? null;
+  }
+
+  private refreshCurrentPlan(companyId: number): void {
+    this.plansService.getCurrentPlan(companyId).subscribe({
+      next: (plan: CompanyPlan) => {
+        this.currentPlan.id = plan?.plan?.id ?? this.currentPlan.id;
+        this.currentPlan.name = plan?.plan?.name ?? this.currentPlan.name;
+        this.currentPlanData = plan;
+        this.plansService.setCurrentPlan(plan);
+      },
+      error: (err) => {
+        console.error('Unable to refresh current plan', err);
+      }
+    });
+  }
+
+  private refreshCurrentPlanForCurrentUser(): void {
+    const companyId = this.getCompanyId();
+    if (companyId) {
+      this.refreshCurrentPlan(companyId);
+    }
+  }
+
   private addCacheBust(url: string): string {
     if (!url) return url;
     const lower = url.toLowerCase();
