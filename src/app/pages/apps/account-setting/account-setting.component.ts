@@ -37,6 +37,7 @@ import { OlympiaService } from 'src/app/services/olympia.service';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import { ApplicationsService } from 'src/app/services/applications.service';
+import { SubscriptionService, SubscriptionStatus, SubscriptionReceipt } from 'src/app/services/subscription.service';
 import { ModalComponent } from 'src/app/components/confirmation-modal/modal.component';
 import { MatSlideToggleChange } from '@angular/material/slide-toggle';
 import { MaterialModule } from '../../../material.module';
@@ -527,7 +528,6 @@ export class AppAccountSettingComponent implements OnInit {
                   this.currentPlan.name = plan.plan.name;
                   this.currentPlanData = plan;
                   this.plansService.setCurrentPlan(plan);
-                  this.loadClientReceipt();
                 },
                 complete: () => {
                   // Initialize form after all client data is fetched
