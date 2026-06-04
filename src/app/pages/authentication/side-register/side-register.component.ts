@@ -1,4 +1,4 @@
-import { Component, HostBinding, OnInit, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, HostBinding, OnInit, OnDestroy, inject, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
 import { CoreService } from 'src/app/services/core.service';
 import {
   FormBuilder,
@@ -306,13 +306,12 @@ export class AppSideRegisterComponent {
   //   });
   // }
 
-  submit() {
+  async submit() {
     if (this.userRole === '3') {
       if (!this.registerClientForm.valid) {
         this.openSnackBar('Please fill all the fields correctly', 'error');
         return;
       }
-
       const clientData = {
         firstName: this.registerClientForm.value.name,
         lastName: this.registerClientForm.value.last_name,
@@ -324,52 +323,7 @@ export class AppSideRegisterComponent {
         password: this.registerClientForm.value.password,
         google_user_id: this.registerClientForm.value.google_user_id === '' ? null : this.registerClientForm.value.google_user_id,
       };
-      const fullName = this.registerClientForm.value.name + ' ' + this.registerClientForm.value.last_name;
-
-      this.companiesService.createPossible(clientData).subscribe({
-        next: () => {
-          this.openSnackBar('Your information was sent successfully', 'success');
-
-          this.authService
-            .login(clientData.email as string, clientData.password as string)
-            .subscribe({
-              next: (loginResponse: any) => {
-                const id = loginResponse.id;
-                const jwt = loginResponse.token;
-                const name = loginResponse.username;
-                const lastName = loginResponse.last_name;
-                const role = loginResponse.role_id;
-                const email = loginResponse.email;
-                const isOrphan = loginResponse.isOrphan;
-                const chatCredentials = loginResponse.chatCredentials;
-                localStorage.setItem('id', id);
-                localStorage.setItem('role', role);
-                localStorage.setItem('name', name);
-                localStorage.setItem('username', name + ' ' + lastName);
-                localStorage.setItem('email', email);
-                localStorage.setItem('isOrphan', isOrphan);
-                localStorage.setItem('jwt', jwt);
-                this.rocketChatService.initializeRocketChat(chatCredentials);
-                this.socketService.joinAuthenticatedRoom(jwt);
-                this.authService.setUserType(role);
-                this.authService.userTypeRouting(String(role));
-                this.notificationsService.loadNotifications();
-                this.entriesService.loadEntries();
-                localStorage.setItem('showWelcomePopup', 'true');
-              },
-              error: (loginError) => {
-                this.openSnackBar('Error logging in', 'error');
-                console.error(loginError);
-                return;
-              },
-            });
-        },
-        error: (e) => {
-          console.error(e);
-          this.openSnackBar(e.error.message, 'error'); // Email already exists
-          return;
-        },
-      })
+      await this.registerAndLogin(clientData);
     }
     else if (this.userRole === '2' && this.hasInvitation) {
       if (!this.registerInvitedTeamMemberForm.valid) {
@@ -515,6 +469,55 @@ export class AppSideRegisterComponent {
       }
       return null;
     };
+  }
+
+  private registerAndLogin(clientData: any): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.companiesService.createPossible(clientData).subscribe({
+        next: () => {
+          this.openSnackBar('Your information was sent successfully', 'success');
+          this.authService
+            .login(clientData.email as string, clientData.password as string)
+            .subscribe({
+              next: (loginResponse: any) => {
+                const id = loginResponse.id;
+                const jwt = loginResponse.token;
+                const name = loginResponse.username;
+                const lastName = loginResponse.last_name;
+                const role = loginResponse.role_id;
+                const email = loginResponse.email;
+                const isOrphan = loginResponse.isOrphan;
+                const chatCredentials = loginResponse.chatCredentials;
+                localStorage.setItem('id', id);
+                localStorage.setItem('role', role);
+                localStorage.setItem('name', name);
+                localStorage.setItem('username', name + ' ' + lastName);
+                localStorage.setItem('email', email);
+                localStorage.setItem('isOrphan', isOrphan);
+                localStorage.setItem('jwt', jwt);
+                this.rocketChatService.initializeRocketChat(chatCredentials);
+                this.socketService.joinAuthenticatedRoom(jwt);
+                this.authService.setUserType(role);
+                this.authService.userTypeRouting(String(role));
+                this.notificationsService.loadNotifications();
+                this.entriesService.loadEntries();
+                localStorage.setItem('showWelcomePopup', 'true');
+                resolve();
+              },
+              error: (loginError) => {
+                this.openSnackBar('Error logging in', 'error');
+                console.error(loginError);
+                reject(loginError);
+              },
+            });
+        },
+        error: (e) => {
+          console.error(e);
+          this.openSnackBar(e.error.message, 'error');
+          reject(e);
+        },
+      });
+    });
   }
 
   restrictPhoneInput(event: KeyboardEvent) {

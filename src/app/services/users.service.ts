@@ -30,44 +30,11 @@ export class UsersService {
   }
 
   public getProfilePic(id?: number): Observable<string | null> {
-    const headers = new HttpHeaders({ Accept: 'image/jpeg' });
-    const options = { headers: headers, responseType: 'blob' as 'json' };
-    return this.http.post<Blob>(`${this.API_URI}/users/profile`, { id }, options).pipe(
-      switchMap((response: Blob) => {
-        if (!response || !(response instanceof Blob)) {
-          return of(null);
-        }
-        if (response.type === 'application/json') {
-          return new Observable<null>((observer) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const responseText = reader.result as string;
-              if (responseText.includes('Profile pic does not exist')) {
-                console.warn('No profile picture available');
-              }
-              observer.next(null); 
-              observer.complete(); 
-            };
-            reader.onerror = (error) => {
-              observer.error(error); 
-            };
-            reader.readAsText(response); 
-          });
-        }
-
-        if (response.type.startsWith('image/')) {
-          const url = URL.createObjectURL(response);
-          return of(url);
-        } else {
-          console.warn('Unexpected response type:', response.type);
-          return of(null);
-        }
-      }),
-      catchError((error) => {
-        console.error('Error fetching profile picture:', error);
-        return of(null);
-      })
-    );
+    const userId = id ?? localStorage.getItem('id');
+    if (userId === null || userId === undefined || userId === '') {
+      return of(null);
+    }
+    return of(`${this.API_URI}/profile/${userId}`);
   }
 
   getThemePreference(): Observable<ThemePreference> {

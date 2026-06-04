@@ -4,8 +4,8 @@ import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
 export interface SubscriptionStatus {
-  status: 'active' | 'canceled' | 'past_due' | 'incomplete' | 'inactive';
-  current_period_end?: string;
+  status: 'active' | 'canceled' | 'past_due' | 'incomplete' | 'inactive' | 'trialing';
+  current_period_end?: string | null;
   cancel_at_period_end: boolean;
 }
 
@@ -39,18 +39,25 @@ export class SubscriptionService {
     return this.http.post<{ url: string }>(`${this.apiUrl}/create`, {});
   }
 
-  createPlanSubscription(planId: number): Observable<{ url: string }> {
-    return this.http.post<{ url: string }>(`${this.apiUrl}/create`, {
+  createPlanSubscription(planId: number): Observable<{ url?: string; updated?: boolean }> {
+    return this.http.post<{ url?: string; updated?: boolean }>(`${this.apiUrl}/create`, {
       plan_id: planId
     });
   }
 
-  cancelSubscription(): Observable<{ message: string; current_period_end: number }> {
-    return this.http.post<{ message: string; current_period_end: number }>(`${this.apiUrl}/cancel`, {});
+  createCustomerPortal(returnUrl?: string): Observable<{ url: string }> {
+    const defaultReturnUrl = returnUrl || `${window.location.origin}/apps/account-settings`;
+    return this.http.post<{ url: string }>(`${this.apiUrl}/portal`, {
+      return_url: defaultReturnUrl
+    });
   }
 
-  getSubscriptionStatus(): Observable<SubscriptionStatus> {
-    return this.http.get<SubscriptionStatus>(`${this.apiUrl}/status`);
+  cancelSubscription(payload?: any): Observable<{ message: string; current_period_end: number }> {
+    return this.http.post<{ message: string; current_period_end: number }>(`${this.apiUrl}/cancel`, payload || {});
+  }
+
+  getSentinelStatus(): Observable<SubscriptionStatus> {
+    return this.http.get<SubscriptionStatus>(`${this.apiUrl}/sentinel/status`);
   }
 
   getSubscriptionReceipt(): Observable<SubscriptionReceipt> {

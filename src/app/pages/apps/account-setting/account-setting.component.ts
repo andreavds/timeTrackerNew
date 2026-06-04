@@ -28,6 +28,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { CompaniesService } from 'src/app/services/companies.service';
 import { PlansService } from 'src/app/services/plans.service';
+import { CompanyPlan } from 'src/app/models/Plan.model';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { environment } from 'src/environments/environment';
 import { catchError, finalize, switchMap } from 'rxjs/operators';
@@ -36,6 +37,7 @@ import { OlympiaService } from 'src/app/services/olympia.service';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import { ApplicationsService } from 'src/app/services/applications.service';
+import { SubscriptionService, SubscriptionStatus, SubscriptionReceipt } from 'src/app/services/subscription.service';
 import { ModalComponent } from 'src/app/components/confirmation-modal/modal.component';
 import { MatSlideToggleChange } from '@angular/material/slide-toggle';
 import { MaterialModule } from '../../../material.module';
@@ -51,7 +53,8 @@ import { formatEnglishLevelDisplay, getEnglishLevelLabel } from 'src/app/utils/e
   standalone: true,
   selector: 'app-account-setting',
   imports: [MaterialModule, MatCardModule, ReactiveFormsModule, MatIconModule, TablerIconsModule, MatTabsModule, MatFormFieldModule, MatSlideToggleModule, MatSelectModule, MatInputModule, MatButtonModule, MatDividerModule, MatDatepickerModule, MatNativeDateModule, NgIf, RouterLink, MatProgressBar, CommonModule, MatMenuModule, LoaderComponent, ModalComponent],
-  templateUrl: './account-setting.component.html'
+  templateUrl: './account-setting.component.html',
+  styleUrl: './account-setting.component.scss'
 })
 export class AppAccountSettingComponent implements OnInit {
   selectedTabIndex: number = 0;
@@ -159,10 +162,7 @@ export class AppAccountSettingComponent implements OnInit {
   showInsuranceDetails: boolean = false;
   selectedTag: string = 'general';
   role: string | null = localStorage.getItem('role');
-  currentPlan: any = {
-    id: '',
-    name: ''
-  };
+  currentPlan: { id: number | string; name: string } = { id: '', name: '' };
   logo: string = 'assets/images/default-logo.jpg';
   picture: string = this.role === '3' ? 'assets/images/default-user-profile-pic.png' : 'assets/images/default-logo.jpg';
   originalLogo: string = '';
@@ -261,9 +261,14 @@ export class AppAccountSettingComponent implements OnInit {
   videoUploadProgress: number = 0;
   maxVideoSize: number = 100 * 1024 * 1024; 
   maxPictureSize: number =  1 * 1024 * 1024;
+  currentPlanData: CompanyPlan | null = null;
   isLoadingSubscription = false;
+  isLoadingPlanReset = false;
   formChanged: boolean = false;
   originalUserData: any = null;
+  subscriptionReceipt: SubscriptionReceipt | null = null;
+  clientSubscriptionReceipt: SubscriptionReceipt | null = null;
+  planSubscriptionReceipt: SubscriptionReceipt | null = null;
   isLoadingReceipt = false;
   certifications: any[] = [];
   isLoadingCertifications = false;
@@ -283,7 +288,8 @@ export class AppAccountSettingComponent implements OnInit {
             private cdr: ChangeDetectorRef,
             public applicationsService: ApplicationsService,
             private route: ActivatedRoute,
-            private router: Router,
+            public router: Router,
+            private subscriptionService: SubscriptionService,
             private certificationsService: CertificationsService,
             private permissionService: PermissionService,
           ) {}
@@ -517,9 +523,11 @@ export class AppAccountSettingComponent implements OnInit {
               }
 
               this.plansService.getCurrentPlan(company.company_id).subscribe({
-                next: (plan: any) => {
-                  this.currentPlan.id = plan.plan.id
+                next: (plan: CompanyPlan) => {
+                  this.currentPlan.id = plan.plan.id;
                   this.currentPlan.name = plan.plan.name;
+                  this.currentPlanData = plan;
+                  this.plansService.setCurrentPlan(plan);
                 },
                 complete: () => {
                   // Initialize form after all client data is fetched
@@ -1357,6 +1365,83 @@ export class AppAccountSettingComponent implements OnInit {
     });
   }
 
+  resetPlan(): void {
+    const planId = this.currentPlanData?.plan?.id;
+    const periodEnd = planId === 1
+      ? this.currentPlanData?.client_plan?.current_period_end
+      : this.currentPlanData?.subscription?.current_period_end;
+    const endDate = periodEnd
+      ? new Date(periodEnd).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : 'the end of the billing period';
+    const dialogRef = this.dialog.open(ModalComponent, {
+      width: '520px',
+      data: {
+        action: 'cancel',
+        subject: `plan (${this.currentPlan.name})`,
+        message: `You will have access until ${endDate}. After that you will lose your benefits and premium functionalities.`
+      }
+    });
+    dialogRef.afterClosed().subscribe(result => {
+      if (!result) return;
+      this.isLoadingPlanReset = true;
+      const serviceTypeMap: Record<number, string> = { 2: 'essential_plan', 3: 'professional_plan', 4: 'executive_plan', 5: 'ai_legal_agent_plan' };
+      const serviceType = serviceTypeMap[planId as number] ?? 'client_plan';
+      this.subscriptionService.cancelSubscription({ serviceType }).subscribe({
+        next: (response: any) => {
+          this.openSnackBar('Your plan has been canceled successfully. Access remains until the end of the billing period.', 'Close');
+          this.refreshCurrentPlanForCurrentUser();
+          this.isLoadingPlanReset = false;
+        },
+        error: (error) => {
+          console.error('Error canceling plan:', error);
+          this.openSnackBar('Error canceling plan. Please try again.', 'Close');
+          this.isLoadingPlanReset = false;
+        }
+      });
+    });
+  }
+
+  editPaymentMethod(): void {
+    this.subscriptionService.createCustomerPortal().subscribe({
+      next: (res) => {
+        if (res?.url) {
+          window.location.href = res.url;
+        } else {
+          this.openSnackBar('Unable to open payment portal. Please try again.', 'Close');
+        }
+      },
+      error: (err) => {
+        console.error('Error opening customer portal:', err);
+        this.openSnackBar('Error opening payment portal. Please try again.', 'Close');
+      }
+    });
+  }
+
+  private getCompanyId(): number | null {
+    return this.user?.company?.company_id ?? this.user?.company?.id ?? this.user?.employee?.company_id ?? null;
+  }
+
+  private refreshCurrentPlan(companyId: number): void {
+    this.plansService.getCurrentPlan(companyId).subscribe({
+      next: (plan: CompanyPlan) => {
+        this.currentPlan.id = plan?.plan?.id ?? this.currentPlan.id;
+        this.currentPlan.name = plan?.plan?.name ?? this.currentPlan.name;
+        this.currentPlanData = plan;
+        this.plansService.setCurrentPlan(plan);
+      },
+      error: (err) => {
+        console.error('Unable to refresh current plan', err);
+      }
+    });
+  }
+
+  private refreshCurrentPlanForCurrentUser(): void {
+    const companyId = this.getCompanyId();
+    if (companyId) {
+      this.refreshCurrentPlan(companyId);
+    }
+  }
+
   private addCacheBust(url: string): string {
     if (!url) return url;
     const lower = url.toLowerCase();
@@ -1609,6 +1694,30 @@ export class AppAccountSettingComponent implements OnInit {
 
   addCertification() {
     this.openCertificationDialog('Add', {});
+  }
+
+  get effectivePlanStatus(): string {
+    const sub = this.currentPlanData?.subscription;
+    if (sub?.status && sub.status !== 'inactive') return sub.status;
+    return 'inactive';
+  }
+
+  get effectiveClientPlanStatus(): string {
+    const sub = this.currentPlanData?.client_plan;
+    if (sub?.status && sub.status !== 'inactive') return sub.status;
+    return 'inactive';
+  }
+
+  formatPlanStatus(status: string | undefined | null): string {
+    const labels: Record<string, string> = {
+      active: 'Active',
+      trialing: 'Trialing',
+      past_due: 'Past Due',
+      incomplete: 'Incomplete',
+      canceled: 'Canceled',
+      inactive: 'Inactive',
+    };
+    return status ? (labels[status] ?? status) : '';
   }
 
   isImage(url: string | undefined): boolean {

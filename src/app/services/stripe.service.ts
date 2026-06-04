@@ -35,6 +35,24 @@ export class StripeService {
     return this.http.get<{ receiptUrl: string }>(`${environment.apiUrl}/stripe/${paymentId}/receipt-url`);
   }
 
+  createSubscriptionSetupIntent(data: { email: string; name: string }): Observable<{ clientSecret: string; customerId: string }> {
+    const headers = new HttpHeaders({ 'content-type': 'application/json' });
+    return this.http.post<{ clientSecret: string; customerId: string }>(
+      `${environment.apiUrl}/stripe/setup-intent/subscribe`,
+      data,
+      { headers },
+    );
+  }
+
+  activateClientSubscription(data: { payment_method_id: string }): Observable<{ success: boolean }> {
+    const headers = new HttpHeaders({ 'content-type': 'application/json' });
+    return this.http.post<{ success: boolean }>(
+      `${environment.apiUrl}/stripe/subscribe`,
+      data,
+      { headers },
+    );
+  }
+
   // charge(body: any){
   //   const headers = new HttpHeaders({'content_type':'application/json'})
   //   return this.http.post<any>(environment.apiUrl+'/stripe/checkout', body, {headers})
