@@ -121,7 +121,7 @@ export class FullComponent implements OnInit {
   }
 
   get isRestrictedClient(): boolean {
-    return this.role === '3' && !this.clientAccessService.hasAccess();
+    return this.role === '3' && !this.clientAccessService.hasEmployees();
   }
 
   get visibleApps() {
@@ -364,5 +364,9 @@ export class FullComponent implements OnInit {
         }
       },
     });
+  }
+
+  public get clientHasTeam(): boolean {
+    return this.clientAccessService.hasEmployees();
   }
 }
