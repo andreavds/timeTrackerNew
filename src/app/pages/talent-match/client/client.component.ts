@@ -332,8 +332,6 @@ export class AppTalentMatchClientComponent implements OnInit, AfterViewInit, OnD
         this.aiLoading = false;
         this.tableLoading = false;
         this.aiAnswer = response.meta.total > 0 ? '' : 'No matches.';
-
-        this.saveAISearchState(this.activeAISearchSessionId, this.buildAISearchFilters());
       },
       error: (err) => {
         if (err.status === 429) {
@@ -345,7 +343,6 @@ export class AppTalentMatchClientComponent implements OnInit, AfterViewInit, OnD
             this.aiAnswer = 'You have reached the limit of 50 AI requests per day. Manual search has been enabled until your limit resets tomorrow. Upgrade your plan to continue using AI-powered search without interruptions.';
             this.useManualSearch = true;
             this.onManualSearch(this.query);
-            this.clearAISearchState();
             this.resetActiveAISearch();
           }
           this.aiLoading = false;
@@ -361,7 +358,6 @@ export class AppTalentMatchClientComponent implements OnInit, AfterViewInit, OnD
   }
 
   onManualSearch(query?: string) {
-    this.clearAISearchState();
     this.resetActiveAISearch();
     const searchQuery = (query || this.query || '').trim();
     this.query = searchQuery;
@@ -430,18 +426,6 @@ export class AppTalentMatchClientComponent implements OnInit, AfterViewInit, OnD
 
   getApplications() {
     this.tableLoading = true;
-
-    if (!this.hasRestoredStoredSearch) {
-      const stored = this.loadAISearchState();
-      if (stored?.filters) {
-        if (stored.filters.selectedRole !== undefined) this.selectedRole = stored.filters.selectedRole;
-        if (stored.filters.selectedPracticeArea !== undefined) this.selectedPracticeArea = stored.filters.selectedPracticeArea;
-        if (stored.filters.roleDescription !== undefined) this.roleDescription = stored.filters.roleDescription;
-        if (stored.filters.query !== undefined) this.query = stored.filters.query;
-      }
-      if (stored?.sessionId) this.activeAISearchSessionId = stored.sessionId;
-      this.hasRestoredStoredSearch = true;
-    }
 
     if (this.isAISearchActive()) {
       this.fetchAICandidates(true);
@@ -861,38 +845,6 @@ export class AppTalentMatchClientComponent implements OnInit, AfterViewInit, OnD
     const imgElement = event.target as HTMLImageElement;
     imgElement.src = this.assetsPath;
     imgElement.onerror = null;
-  }
-
-  private saveAISearchState(
-    sessionId: string,
-    filters: CandidateEvaluationFilters,
-  ) {
-    localStorage.setItem('aiFilters', JSON.stringify(filters));
-    if (sessionId) {
-      localStorage.setItem('aiSearchSessionId', sessionId);
-    } else {
-      localStorage.removeItem('aiSearchSessionId');
-    }
-  }
-
-  private loadAISearchState(): {
-    filters: CandidateEvaluationFilters;
-    sessionId: string | null;
-  } | null {
-    const filtersStr = localStorage.getItem('aiFilters');
-    const sessionId = localStorage.getItem('aiSearchSessionId');
-    if (!filtersStr) return null;
-    try {
-      const filters = JSON.parse(filtersStr);
-      return { filters, sessionId };
-    } catch {
-      return null;
-    }
-  }
-
-  private clearAISearchState() {
-    localStorage.removeItem('aiFilters');
-    localStorage.removeItem('aiSearchSessionId');
   }
 
   getSeparatedDescription(description: string): { baseText: string, role: string } {
