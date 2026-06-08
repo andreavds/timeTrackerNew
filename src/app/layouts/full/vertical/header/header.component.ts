@@ -117,7 +117,7 @@ export class HeaderComponent implements OnInit {
   }
   private readonly clientAccessService = inject(ClientAccessService);
   get isRestrictedClient(): boolean {
-    return this.role === '3' && !this.clientAccessService.hasAccess();
+    return this.role === '3' && !this.clientAccessService.hasEmployees();
   }
   showFiller = false;
 
