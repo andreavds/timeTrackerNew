@@ -1,5 +1,5 @@
 export const environment = {
-  production: true,
+  production: false,
   apiUrl: 'https://home.inimbleapp.com/api',
   socket: 'https://home.inimbleapp.com',
   url: 'https://home.inimbleapp.com/',
