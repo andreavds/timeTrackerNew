@@ -81,7 +81,7 @@ export class AppLandingpageComponent implements AfterViewInit {
   comparisonTables = [
     {
       id: 1,
-      img: 'assets/images/comparison-table.svg',
+      img: 'assets/images/svgs/comparison-table.svg',
       title: 'Inimble vs freelance platforms',
     },
     {
