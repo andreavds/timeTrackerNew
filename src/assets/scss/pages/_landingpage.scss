@@ -415,21 +415,18 @@ mat-tab-header {
 
 #invoices-img {
   height: 600px;
+  width: auto;
   overflow: hidden;
+  background-image: url("../../images/landingpage/invoices.png");
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
 }
-#invoices-img-mobile-1 {
-  height: 250px;
+#invoices-img-mobile {
+  height: 500px;
+  width: auto;
   overflow: hidden;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-}
-#invoices-img-mobile-2 {
-  height: 250px;
-  overflow: hidden;
+  background-image: url("../../images/landingpage/invoices-mobile.png");
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
