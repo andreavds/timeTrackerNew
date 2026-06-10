@@ -9,6 +9,7 @@ import { notAuthGuard } from './services/guards/notAuth-guard.service';
 import { UserTypeGuardService } from './services/guards/user-type-guard.service';
 import { externalRedirectGuard } from './services/guards/external-redirect-guard.service';
 import { ClientNoTMGuard } from './services/guards/client-no-tm.service';
+import { AppLandingpageComponent } from './pages/landing-page/landingpage.component';
 
 const ADMIN_TYPE_ROLE = '1';
 const USER_TYPE_ROLE = '2';
@@ -110,7 +111,7 @@ export const routes: Routes = [
       {
         path: 'landingpage',
         canActivate: [notAuthGuard, externalRedirectGuard],
-        component: BlankComponent,
+        component: AppLandingpageComponent,
       },
       {
         path: 'discovery',
