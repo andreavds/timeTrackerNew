@@ -5,6 +5,10 @@ on:
     branches: [ "develop" ]
   workflow_dispatch:
 
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: true
+
 jobs:
   validate:
     name: Validate
@@ -14,8 +18,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Lint
         run: npm run lint
@@ -30,14 +43,14 @@ jobs:
     name: Deploy to Stage
     needs: validate
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build project
         run: npm run build:stage
@@ -57,6 +70,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key.pem ubuntu@${{ secrets.STAGE_SERVER_IP }} "
             cd /var/www/ &&
+            sudo mkdir -p /var/www/htmlOLD &&
             sudo rm -rf htmlOLD/* &&
             sudo mv html/* htmlOLD/ &&
             cd &&
@@ -69,14 +83,14 @@ jobs:
     name: Deploy to Production
     needs: validate
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build project
         run: npm run build
@@ -96,6 +110,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key.pem ubuntu@${{ secrets.PROD_SERVER_IP }} "
             cd /var/www/ &&
+            sudo mkdir -p /var/www/htmlOLD &&
             sudo rm -rf htmlOLD/* &&
             sudo mv html/* htmlOLD/ &&
             cd &&
