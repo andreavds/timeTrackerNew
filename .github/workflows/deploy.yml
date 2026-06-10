@@ -2,43 +2,123 @@ name: Deployment Pipeline
 
 on:
   push:
-    branches: [ "main" ]  
+    branches: [ "develop" ]
+  workflow_dispatch:
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest 
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 
+        uses: actions/checkout@v4
 
-      # Dependencies
       - name: Install dependencies
-        run: npm install 
+        run: npm install
 
-      # Build
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watch=false --browsers=ChromeHeadless
+
       - name: Build project
         run: npm run build
 
-      # Setup SSH key
+  deploy-stage:
+    name: Deploy to Stage
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build:stage
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key.pem
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
           chmod 600 ~/.ssh/deploy_key.pem
-          ssh-keyscan ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan ${{ secrets.STAGE_SERVER_IP }} >> ~/.ssh/known_hosts
 
-      # Deploy
       - name: Copy files to server
         run: |
-          scp -i ~/.ssh/deploy_key.pem -r ./dist/* ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/dist/
-      
-      - name: Update files and restart Nginx
+          scp -i ~/.ssh/deploy_key.pem -r ./dist/browser/* ubuntu@${{ secrets.STAGE_SERVER_IP }}:/home/ubuntu/dist/
+
+      - name: Deploy frontend
         run: |
-          ssh -i ~/.ssh/deploy_key.pem ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP}} "
-            sudo rm -rf /var/www/htmlOLD/* &&
-            sudo mv /var/www/html/* /var/www/htmlOLD/ &&
-            sudo mv /home/ubuntu/dist/* /var/www/html/ &&
+          ssh -i ~/.ssh/deploy_key.pem ubuntu@${{ secrets.STAGE_SERVER_IP }} "
+            cd /var/www/ &&
+            sudo rm -rf htmlOLD/* &&
+            sudo mv html/* htmlOLD/ &&
+            cd &&
+            sudo mv dist/* /var/www/html &&
             sudo systemctl restart nginx &&
             sudo chown -R www-data:www-data /var/www/
           "
+
+  deploy-production:
+    name: Deploy to Production
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
+          chmod 600 ~/.ssh/deploy_key.pem
+          ssh-keyscan ${{ secrets.PROD_SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Copy files to server
+        run: |
+          scp -i ~/.ssh/deploy_key.pem -r ./dist/browser/* ubuntu@${{ secrets.PROD_SERVER_IP }}:/home/ubuntu/dist/
+
+      - name: Deploy frontend
+        run: |
+          ssh -i ~/.ssh/deploy_key.pem ubuntu@${{ secrets.PROD_SERVER_IP }} "
+            cd /var/www/ &&
+            sudo rm -rf htmlOLD/* &&
+            sudo mv html/* htmlOLD/ &&
+            cd &&
+            sudo mv dist/* /var/www/html &&
+            sudo systemctl restart nginx &&
+            sudo chown -R www-data:www-data /var/www/
+          "
+
+  notify:
+    name: Notify Deployment Status
+    needs: [deploy-stage, deploy-production]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Write deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Event | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage deploy | ${{ needs.deploy-stage.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Production deploy | ${{ needs.deploy-production.result }} |" >> $GITHUB_STEP_SUMMARY
