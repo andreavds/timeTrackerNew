@@ -55,9 +55,8 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
           chmod 600 ~/.ssh/deploy_key.pem
-          ssh-keyscan ${{ secrets.STAGE_SERVER_IP }} >> ~/.ssh/known_hosts
 
       - name: Copy files to server
         run: |
@@ -95,9 +94,8 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
           chmod 600 ~/.ssh/deploy_key.pem
-          ssh-keyscan ${{ secrets.PROD_SERVER_IP }} >> ~/.ssh/known_hosts
 
       - name: Copy files to server
         run: |
@@ -128,9 +126,11 @@ jobs:
           echo "Triggered by : ${{ github.actor }}"
           echo "Event        : ${{ github.event_name }}"
           echo "Branch       : ${{ github.ref_name }}"
-          echo "Commit       : ${{ github.sha }}"
           echo "Stage deploy : ${{ needs.deploy-stage.result }}"
           echo "Prod deploy  : ${{ needs.deploy-production.result }}"
+
+          COMMIT=$(echo "${{ github.event.head_commit.message }}" | tr '\n' ' ')
+
           {
             echo "## Deployment Summary"
             echo "| Field | Value |"
@@ -138,7 +138,7 @@ jobs:
             echo "| Triggered by | ${{ github.actor }} |"
             echo "| Event | ${{ github.event_name }} |"
             echo "| Branch | ${{ github.ref_name }} |"
-            echo "| Commit | ${{ github.sha }} |"
+            echo "| Commit | $COMMIT |" >> $GITHUB_STEP_SUMMARY
             echo "| Stage deploy | ${{ needs.deploy-stage.result }} |"
             echo "| Production deploy | ${{ needs.deploy-production.result }} |"
           } >> $GITHUB_STEP_SUMMARY
@@ -165,14 +165,14 @@ jobs:
               \"@type\": \"MessageCard\",
               \"@context\": \"http://schema.org/extensions\",
               \"themeColor\": \"$COLOR\",
-              \"summary\": \"Frontend Deployment $STATUS\",
+              \"summary\": \"Backend Deployment $STATUS\",
               \"sections\": [{
-                \"activityTitle\": \"Frontend Deployment $STATUS\",
+                \"activityTitle\": \"Backend Deployment $STATUS\",
                 \"facts\": [
                   {\"name\": \"Triggered by\", \"value\": \"${{ github.actor }}\"},
                   {\"name\": \"Event\", \"value\": \"${{ github.event_name }}\"},
                   {\"name\": \"Branch\", \"value\": \"${{ github.ref_name }}\"},
-                  {\"name\": \"Commit\", \"value\": \"${{ github.sha }}\"},
+                  {\"name\": \"Commit\", \"value\": \"${{ github.event.head_commit.message }}\"},
                   {\"name\": \"Stage deploy\", \"value\": \"$STAGE\"},
                   {\"name\": \"Production deploy\", \"value\": \"$PROD\"}
                 ]
