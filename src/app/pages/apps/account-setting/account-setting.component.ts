@@ -1590,7 +1590,7 @@ export class AppAccountSettingComponent implements OnInit {
     this.subscriptionService.createCustomerPortal().subscribe({
       next: (res) => {
         if (res?.url) {
-          window.open(res.url, '_blank');
+          window.location.href = res.url;
         } else {
           this.openSnackBar('Unable to open payment portal. Please try again.', 'Close');
         }
