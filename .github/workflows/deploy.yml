@@ -60,11 +60,11 @@ jobs:
 
       - name: Copy files to server
         run: |
-          scp -i ~/.ssh/deploy_key.pem -r ./dist/browser/* ubuntu@${{ secrets.STAGE_SERVER_IP }}:/home/ubuntu/dist/
+          scp -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no -r ./dist/browser/* ubuntu@${{ secrets.STAGE_SERVER_IP }}:/home/ubuntu/dist/
 
       - name: Deploy frontend
         run: |
-          ssh -i ~/.ssh/deploy_key.pem ubuntu@${{ secrets.STAGE_SERVER_IP }} "
+          ssh -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.STAGE_SERVER_IP }} "
             cd /var/www/ &&
             sudo mkdir -p /var/www/htmlOLD &&
             sudo rm -rf htmlOLD/* &&
@@ -99,11 +99,11 @@ jobs:
 
       - name: Copy files to server
         run: |
-          scp -i ~/.ssh/deploy_key.pem -r ./dist/browser/* ubuntu@${{ secrets.PROD_SERVER_IP }}:/home/ubuntu/dist/
+          scp -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no -r ./dist/browser/* ubuntu@${{ secrets.PROD_SERVER_IP }}:/home/ubuntu/dist/
 
       - name: Deploy frontend
         run: |
-          ssh -i ~/.ssh/deploy_key.pem ubuntu@${{ secrets.PROD_SERVER_IP }} "
+          ssh -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.PROD_SERVER_IP }} "
             cd /var/www/ &&
             sudo mkdir -p /var/www/htmlOLD &&
             sudo rm -rf htmlOLD/* &&
@@ -138,7 +138,7 @@ jobs:
             echo "| Triggered by | ${{ github.actor }} |"
             echo "| Event | ${{ github.event_name }} |"
             echo "| Branch | ${{ github.ref_name }} |"
-            echo "| Commit | $COMMIT |" >> $GITHUB_STEP_SUMMARY
+            echo "| Commit | $COMMIT |"
             echo "| Stage deploy | ${{ needs.deploy-stage.result }} |"
             echo "| Production deploy | ${{ needs.deploy-production.result }} |"
           } >> $GITHUB_STEP_SUMMARY
@@ -165,9 +165,9 @@ jobs:
               \"@type\": \"MessageCard\",
               \"@context\": \"http://schema.org/extensions\",
               \"themeColor\": \"$COLOR\",
-              \"summary\": \"Backend Deployment $STATUS\",
+              \"summary\": \"Frontend Deployment $STATUS\",
               \"sections\": [{
-                \"activityTitle\": \"Backend Deployment $STATUS\",
+                \"activityTitle\": \"Frontend Deployment $STATUS\",
                 \"facts\": [
                   {\"name\": \"Triggered by\", \"value\": \"${{ github.actor }}\"},
                   {\"name\": \"Event\", \"value\": \"${{ github.event_name }}\"},
