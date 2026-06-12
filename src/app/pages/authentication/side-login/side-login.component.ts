@@ -51,8 +51,7 @@ export function jwtOptionsFactory() {
   ],
   templateUrl: './side-login.component.html',
 })
-export class AppSideLoginComponent {
-  
+export class AppSideLoginComponent {  
   notificationStore = inject(NotificationStore);
   //@HostBinding('class') classes = 'row';
   // isSignUp: boolean = false;

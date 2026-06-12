@@ -121,7 +121,7 @@ export class FullComponent implements OnInit {
   }
 
   get isRestrictedClient(): boolean {
-    return this.role === '3' && !this.clientAccessService.hasAccess();
+    return this.role === '3' && !this.clientAccessService.hasEmployees();
   }
 
   get visibleApps() {
@@ -300,6 +300,10 @@ export class FullComponent implements OnInit {
         this.jitsiMinimized = false;
       });
     } catch (e) {}
+
+    if (!this.clientHasTeam) {
+      this.toggleCollapsed();
+    }
   }
 
   ngOnDestroy() {
@@ -364,5 +368,9 @@ export class FullComponent implements OnInit {
         }
       },
     });
+  }
+
+  public get clientHasTeam(): boolean {
+    return this.clientAccessService.hasEmployees();
   }
 }

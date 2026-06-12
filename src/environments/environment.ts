@@ -2,7 +2,7 @@ export const environment = {
   production: false,
   apiUrl: 'http://localhost:3000/api',
   socket: 'http://localhost:3000',
-  url: 'https://localhost:4200/',
+  url: 'http://localhost:4200/',
   baseWP: 'https://i-nimble.com',
   form:'https://forms.office.com/r',
   s3: 'https://inimble-app.s3.us-east-1.amazonaws.com',
