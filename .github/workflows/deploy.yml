@@ -2,43 +2,180 @@ name: Deployment Pipeline
 
 on:
   push:
-    branches: [ "main" ]  
+    branches: [ "develop" ]
+  workflow_dispatch:
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest 
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 
+        uses: actions/checkout@v5
 
-      # Dependencies
+      - name: Cache node modules
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
-        run: npm install 
+        run: npm ci
 
-      # Build
+      - name: Run tests
+        run: npm test -- --watch=false --browsers=ChromeHeadless || true
+
       - name: Build project
         run: npm run build
 
-      # Setup SSH key
+  deploy-stage:
+    name: Deploy to Stage
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build:stage
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key.pem
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
           chmod 600 ~/.ssh/deploy_key.pem
-          ssh-keyscan ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-      # Deploy
       - name: Copy files to server
         run: |
-          scp -i ~/.ssh/deploy_key.pem -r ./dist/* ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/dist/
-      
-      - name: Update files and restart Nginx
+          scp -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no -r ./dist/browser/* ubuntu@${{ secrets.STAGE_SERVER_IP }}:/home/ubuntu/dist/
+
+      - name: Deploy frontend
         run: |
-          ssh -i ~/.ssh/deploy_key.pem ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP}} "
-            sudo rm -rf /var/www/htmlOLD/* &&
-            sudo mv /var/www/html/* /var/www/htmlOLD/ &&
-            sudo mv /home/ubuntu/dist/* /var/www/html/ &&
+          ssh -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.STAGE_SERVER_IP }} "
+            cd /var/www/ &&
+            sudo mkdir -p /var/www/htmlOLD &&
+            sudo rm -rf htmlOLD/* &&
+            sudo mv html/* htmlOLD/ &&
+            cd &&
+            sudo mv dist/* /var/www/html &&
             sudo systemctl restart nginx &&
             sudo chown -R www-data:www-data /var/www/
           "
+
+  deploy-production:
+    name: Deploy to Production
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
+          chmod 600 ~/.ssh/deploy_key.pem
+
+      - name: Copy files to server
+        run: |
+          scp -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no -r ./dist/browser/* ubuntu@${{ secrets.PROD_SERVER_IP }}:/home/ubuntu/dist/
+
+      - name: Deploy frontend
+        run: |
+          ssh -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.PROD_SERVER_IP }} "
+            cd /var/www/ &&
+            sudo mkdir -p /var/www/htmlOLD &&
+            sudo rm -rf htmlOLD/* &&
+            sudo mv html/* htmlOLD/ &&
+            cd &&
+            sudo mv dist/* /var/www/html &&
+            sudo systemctl restart nginx &&
+            sudo chown -R www-data:www-data /var/www/
+          "
+
+  notify:
+    name: Notify Deployment Status
+    needs: [deploy-stage, deploy-production]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Write deployment summary
+        run: |
+          echo "Triggered by : ${{ github.actor }}"
+          echo "Event        : ${{ github.event_name }}"
+          echo "Branch       : ${{ github.ref_name }}"
+          echo "Stage deploy : ${{ needs.deploy-stage.result }}"
+          echo "Prod deploy  : ${{ needs.deploy-production.result }}"
+
+          COMMIT=$(echo "${{ github.event.head_commit.message }}" | tr '\n' ' ')
+
+          {
+            echo "## Deployment Summary"
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Triggered by | ${{ github.actor }} |"
+            echo "| Event | ${{ github.event_name }} |"
+            echo "| Branch | ${{ github.ref_name }} |"
+            echo "| Commit | $COMMIT |"
+            echo "| Stage deploy | ${{ needs.deploy-stage.result }} |"
+            echo "| Production deploy | ${{ needs.deploy-production.result }} |"
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Send Teams notification
+        run: |
+          STAGE="${{ needs.deploy-stage.result }}"
+          PROD="${{ needs.deploy-production.result }}"
+
+          if [[ "$STAGE" == "failure" || "$PROD" == "failure" ]]; then
+            COLOR="FF0000"
+            STATUS="Failed"
+          elif [[ "$STAGE" == "success" || "$PROD" == "success" ]]; then
+            COLOR="28a745"
+            STATUS="Succeeded"
+          else
+            COLOR="808080"
+            STATUS="Skipped"
+          fi
+
+          curl -s -X POST \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"@type\": \"MessageCard\",
+              \"@context\": \"http://schema.org/extensions\",
+              \"themeColor\": \"$COLOR\",
+              \"summary\": \"Frontend Deployment $STATUS\",
+              \"sections\": [{
+                \"activityTitle\": \"Frontend Deployment $STATUS\",
+                \"facts\": [
+                  {\"name\": \"Triggered by\", \"value\": \"${{ github.actor }}\"},
+                  {\"name\": \"Event\", \"value\": \"${{ github.event_name }}\"},
+                  {\"name\": \"Branch\", \"value\": \"${{ github.ref_name }}\"},
+                  {\"name\": \"Commit\", \"value\": \"${{ github.event.head_commit.message }}\"},
+                  {\"name\": \"Stage deploy\", \"value\": \"$STAGE\"},
+                  {\"name\": \"Production deploy\", \"value\": \"$PROD\"}
+                ]
+              }]
+            }" \
+            "${{ secrets.TEAMS_WEBHOOK_URL }}"
