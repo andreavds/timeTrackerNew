@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Cache node modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.npm
@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install dependencies
         run: npm ci
@@ -55,17 +55,16 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
           chmod 600 ~/.ssh/deploy_key.pem
-          ssh-keyscan ${{ secrets.STAGE_SERVER_IP }} >> ~/.ssh/known_hosts
 
       - name: Copy files to server
         run: |
-          scp -i ~/.ssh/deploy_key.pem -r ./dist/browser/* ubuntu@${{ secrets.STAGE_SERVER_IP }}:/home/ubuntu/dist/
+          scp -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no -r ./dist/browser/* ubuntu@${{ secrets.STAGE_SERVER_IP }}:/home/ubuntu/dist/
 
       - name: Deploy frontend
         run: |
-          ssh -i ~/.ssh/deploy_key.pem ubuntu@${{ secrets.STAGE_SERVER_IP }} "
+          ssh -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.STAGE_SERVER_IP }} "
             cd /var/www/ &&
             sudo mkdir -p /var/www/htmlOLD &&
             sudo rm -rf htmlOLD/* &&
@@ -84,7 +83,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install dependencies
         run: npm ci
@@ -95,17 +94,16 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
           chmod 600 ~/.ssh/deploy_key.pem
-          ssh-keyscan ${{ secrets.PROD_SERVER_IP }} >> ~/.ssh/known_hosts
 
       - name: Copy files to server
         run: |
-          scp -i ~/.ssh/deploy_key.pem -r ./dist/browser/* ubuntu@${{ secrets.PROD_SERVER_IP }}:/home/ubuntu/dist/
+          scp -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no -r ./dist/browser/* ubuntu@${{ secrets.PROD_SERVER_IP }}:/home/ubuntu/dist/
 
       - name: Deploy frontend
         run: |
-          ssh -i ~/.ssh/deploy_key.pem ubuntu@${{ secrets.PROD_SERVER_IP }} "
+          ssh -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.PROD_SERVER_IP }} "
             cd /var/www/ &&
             sudo mkdir -p /var/www/htmlOLD &&
             sudo rm -rf htmlOLD/* &&
@@ -125,12 +123,59 @@ jobs:
     steps:
       - name: Write deployment summary
         run: |
-          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Event | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Stage deploy | ${{ needs.deploy-stage.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Production deploy | ${{ needs.deploy-production.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "Triggered by : ${{ github.actor }}"
+          echo "Event        : ${{ github.event_name }}"
+          echo "Branch       : ${{ github.ref_name }}"
+          echo "Stage deploy : ${{ needs.deploy-stage.result }}"
+          echo "Prod deploy  : ${{ needs.deploy-production.result }}"
+
+          COMMIT=$(echo "${{ github.event.head_commit.message }}" | tr '\n' ' ')
+
+          {
+            echo "## Deployment Summary"
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Triggered by | ${{ github.actor }} |"
+            echo "| Event | ${{ github.event_name }} |"
+            echo "| Branch | ${{ github.ref_name }} |"
+            echo "| Commit | $COMMIT |"
+            echo "| Stage deploy | ${{ needs.deploy-stage.result }} |"
+            echo "| Production deploy | ${{ needs.deploy-production.result }} |"
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Send Teams notification
+        run: |
+          STAGE="${{ needs.deploy-stage.result }}"
+          PROD="${{ needs.deploy-production.result }}"
+
+          if [[ "$STAGE" == "failure" || "$PROD" == "failure" ]]; then
+            COLOR="FF0000"
+            STATUS="Failed"
+          elif [[ "$STAGE" == "success" || "$PROD" == "success" ]]; then
+            COLOR="28a745"
+            STATUS="Succeeded"
+          else
+            COLOR="808080"
+            STATUS="Skipped"
+          fi
+
+          curl -s -X POST \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"@type\": \"MessageCard\",
+              \"@context\": \"http://schema.org/extensions\",
+              \"themeColor\": \"$COLOR\",
+              \"summary\": \"Frontend Deployment $STATUS\",
+              \"sections\": [{
+                \"activityTitle\": \"Frontend Deployment $STATUS\",
+                \"facts\": [
+                  {\"name\": \"Triggered by\", \"value\": \"${{ github.actor }}\"},
+                  {\"name\": \"Event\", \"value\": \"${{ github.event_name }}\"},
+                  {\"name\": \"Branch\", \"value\": \"${{ github.ref_name }}\"},
+                  {\"name\": \"Commit\", \"value\": \"${{ github.event.head_commit.message }}\"},
+                  {\"name\": \"Stage deploy\", \"value\": \"$STAGE\"},
+                  {\"name\": \"Production deploy\", \"value\": \"$PROD\"}
+                ]
+              }]
+            }" \
+            "${{ secrets.TEAMS_WEBHOOK_URL }}"
