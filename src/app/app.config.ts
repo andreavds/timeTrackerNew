@@ -24,6 +24,8 @@ import { JwtHelperService, JwtModule, JWT_OPTIONS } from '@auth0/angular-jwt';
 import { ReportsService } from './services/reports.service';
 import { WebSocketService } from './services/socket/web-socket.service';
 import { JwtInterceptor } from './services/jwt.interceptor';
+import { AuthErrorInterceptor } from './interceptors/auth-error.interceptor';
+import { AuthService } from './services/auth.service';
 
 import { ToastrModule } from 'ngx-toastr';
 import { provideToastr } from 'ngx-toastr';
@@ -93,13 +95,19 @@ export const appConfig: ApplicationConfig = {
       withComponentInputBinding()
     ),
     provideHttpClient(
-      withInterceptors([JwtInterceptor])
+      withInterceptors([JwtInterceptor, AuthErrorInterceptor])
     ),
     ...dialogProviders,
     provideClientHydration(),
     provideAnimationsAsync(),
     provideFirebaseApp(() => initializeApp(environment.firebaseConfig)),
     provideAppInitializer(() => inject(ClientAccessService).refresh()),
+    provideAppInitializer(() => {
+      const auth = inject(AuthService);
+      if (localStorage.getItem('jwt')) {
+        auth.checkTokenExpiration();
+      }
+    }),
     provideAuth(() => getAuth()),
     importProvidersFrom(
       FormsModule,
