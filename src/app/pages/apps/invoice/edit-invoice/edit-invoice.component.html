@@ -153,6 +153,14 @@
               <ng-container matColumnDef="footer-sub-total">
                 <td mat-footer-cell *matFooterCellDef colspan="4">Sub-total</td>
               </ng-container>
+              <ng-container matColumnDef="footer-fee-label">
+                <td mat-footer-cell *matFooterCellDef colspan="4">
+                  <span class="d-flex align-items-center gap-8">
+                    <i-tabler name="credit-card" size="14"></i-tabler>
+                    Stripe processing fees: 2,9% + $0,30
+                  </span>
+                </td>
+              </ng-container>
               <ng-container matColumnDef="footer-total">
                 <td mat-footer-cell *matFooterCellDef colspan="4">Total</td>
               </ng-container>
@@ -161,9 +169,14 @@
                   {{ calculateTotalAmount() | currency: 'USD' }}
                 </td>
               </ng-container>
+              <ng-container matColumnDef="footer-fee-amount">
+                <td mat-footer-cell *matFooterCellDef>
+                  {{ stripeFee() | currency: 'USD' }}
+                </td>
+              </ng-container>
               <ng-container matColumnDef="footer-total-amount">
                 <td mat-footer-cell *matFooterCellDef>
-                  {{ calculateTotalAmount() | currency: 'USD' }}
+                  {{ calculateGrandTotal() | currency: 'USD' }}
                 </td>
               </ng-container>
               <ng-container matColumnDef="empty-column">
@@ -183,6 +196,7 @@
               <tr mat-row *matRowDef="let row; columns: itemsDisplayedColumns;"></tr>
               <tr mat-footer-row *matFooterRowDef="itemsAddItemColumns"></tr>
               <tr mat-footer-row *matFooterRowDef="itemsFooterDisplayedColumns"></tr>
+              <tr mat-footer-row *matFooterRowDef="itemsFeeDisplayedColumns"></tr>
               <tr mat-footer-row *matFooterRowDef="itemsSecondFooterDisplayedColumns"></tr>
             </table>
           </div>
