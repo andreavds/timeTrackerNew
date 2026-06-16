@@ -29,4 +29,8 @@ export class PlansService {
   public clearCurrentPlan(): void {
     this.currentPlanSubject.next(null);
   }
+
+  public sendPlanInterest(planId: number): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.API_URI}/interest`, { plan_id: planId });
+  }
 }
