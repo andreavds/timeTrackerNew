@@ -16,8 +16,8 @@ export const AuthErrorInterceptor: HttpInterceptorFn = (
     catchError((error: HttpErrorResponse) => {
       const isApi = request.url.startsWith(environment.apiUrl);
       const isPublicRoute = PUBLIC_ROUTES.some(route => request.url.includes(route));
-
-      if (isApi && !isPublicRoute && error.status === 401) {
+      const jwt = localStorage.getItem('jwt');
+      if (isApi && !isPublicRoute && error.status === 401 && jwt) {
         authService.logout();
       }
       return throwError(() => error);
