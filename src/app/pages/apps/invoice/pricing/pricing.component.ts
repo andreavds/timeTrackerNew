@@ -13,11 +13,9 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ModalComponent } from 'src/app/components/confirmation-modal/modal.component';
 import { PricingCardComponent } from './pricing-card/pricing-card.component';
 import { PricingPlan } from './pricing.model';
-import { SubscriptionService } from 'src/app/services/subscription.service';
 import { CompaniesService } from 'src/app/services/companies.service';
 import { PlansService } from 'src/app/services/plans.service';
 import { CompanyPlan } from 'src/app/models/Plan.model';
-import { finalize } from 'rxjs/operators';
 
 interface apps {
   id: number;
@@ -79,7 +77,6 @@ export class AppPricingComponent implements OnInit {
   @Output() toggleCollapsed = new EventEmitter<void>();
   private settings = inject(CoreService);
   private scroller = inject(ViewportScroller);
-  private subscriptionService = inject(SubscriptionService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
   private companiesService = inject(CompaniesService);
@@ -88,7 +85,7 @@ export class AppPricingComponent implements OnInit {
   options = this.settings.getOptions();
   currentPlanTitle: string | null = null;
   currentPlanData: CompanyPlan | null = null;
-  isSubscriptionLoading = false;
+  isInterestLoading = false;
 
   plans: PricingPlan[] = [
     {
@@ -119,7 +116,7 @@ export class AppPricingComponent implements OnInit {
             'Basic training in legal tools (Filevine, Clio, CRM platforms) and specific roles.',
         },
       ],
-      buttonText: 'Start today for free',
+      buttonText: 'Learn more',
       buttonLink: 'https://inimbleapp.com/authentication/login',
     },
     {
@@ -154,7 +151,7 @@ export class AppPricingComponent implements OnInit {
             'Employee motivation programs, community-building initiatives, and sentiment tracking to ensure long-term talent retention.',
         },
       ],
-      buttonText: 'Start today for free',
+      buttonText: 'Learn more',
       buttonLink: 'https://inimbleapp.com/authentication/login',
       isPopular: true,
     },
@@ -185,7 +182,7 @@ export class AppPricingComponent implements OnInit {
             'Includes a Success Manager for direct oversight, ensuring that KPIs and firm standards are consistently met.',
         },
       ],
-      buttonText: 'Start today for free',
+      buttonText: 'Learn more',
       buttonLink: 'https://inimbleapp.com/authentication/login',
     },
     {
@@ -218,7 +215,7 @@ export class AppPricingComponent implements OnInit {
             'Constant activity tracking and real-time interaction alerts (as per the remote monitoring protocol).',
         },
       ],
-      buttonText: 'Start today for free',
+      buttonText: 'Learn more',
       buttonLink: 'https://inimbleapp.com/authentication/login',
     },
   ];
@@ -251,59 +248,51 @@ export class AppPricingComponent implements OnInit {
 
   onPlanSelected(plan: PricingPlan) {
     const planId = this.getPlanId(plan.title);
-    if (!planId || this.isSubscriptionLoading) {
+    if (!planId || this.isInterestLoading) {
       return;
     }
 
-    if (this.isCurrentPlan(plan)) {
-      this.dialog.open(ModalComponent, {
-        width: '400px',
-        data: {
-          action: 'update',
-          subject: 'Plan',
-          message: 'You already have an active subscription on this plan.',
-        },
-      });
-      return;
-    }
+    const isCurrent = this.isCurrentPlan(plan);
+    const confirmRef = this.dialog.open(ModalComponent, {
+      width: '450px',
+      data: {
+        title: `Request Info: ${plan.title} Plan`,
+        body: isCurrent
+          ? `This is your current plan. Are you sure you would like our Sales team to contact you to update it?`
+          : `Would you like our Sales team to contact you with more information about the ${plan.title} plan?`,
+      },
+    });
 
-    this.isSubscriptionLoading = true;
-    this.subscriptionService.createPlanSubscription(planId)
-      .pipe(finalize(() => {
-        this.isSubscriptionLoading = false;
-      }))
-      .subscribe({
-        next: (response) => {
-          if (response.url) {
-            window.location.href = response.url;
-          }
+    confirmRef.afterClosed().subscribe((confirmed) => {
+      if (!confirmed) return;
+
+      this.isInterestLoading = true;
+      this.plansService.sendPlanInterest(planId).subscribe({
+        next: () => {
+          this.isInterestLoading = false;
+          this.dialog.open(ModalComponent, {
+            width: '450px',
+            data: {
+              title: 'Thank You for Your Interest!',
+              body: 'We have received your request successfully. A member of our Sales team will contact you shortly to provide more information about the selected plan and answer any questions you may have.',
+              hideCancel: true,
+              confirmText: 'Close',
+            },
+          });
         },
         error: (error) => {
-          if (error.status === 409) {
-            const dialogRef = this.dialog.open(ModalComponent, {
-              width: '400px',
-              data: {
-                action: 'update',
-                subject: 'Plan',
-                message: error.error?.error || 'You already have an active subscription. Open the Stripe customer portal to manage it?'
-              }
-            });
-
-            dialogRef.afterClosed().subscribe((result) => {
-              if (result && error.error?.portalUrl) {
-                window.location.href = error.error.portalUrl;
-              }
-            });
-          } else {
-            console.error('Error creating subscription:', error);
-            this.snackBar.open('Something went wrong. Please try again.', 'Close', {
-              duration: 4000,
-              horizontalPosition: 'center',
-              verticalPosition: 'top',
-            });
-          }
-        }
+          this.isInterestLoading = false;
+          const isCooldown = error.status === 429;
+          this.snackBar.open(
+            isCooldown
+              ? 'Please wait a moment before sending another request.'
+              : 'Something went wrong. Please try again.',
+            'Close',
+            { duration: 4000, horizontalPosition: 'center', verticalPosition: 'top' }
+          );
+        },
       });
+    });
   }
 
   private getPlanId(planTitle: string): number | null {
