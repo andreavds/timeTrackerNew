@@ -331,16 +331,20 @@ export class AppEditInvoiceComponent {
           this.changedHourlyRates.clear();
           this.deletedEntries.clear();
           if (Array.isArray(data.custom_items) && data.custom_items.length > 0) {
-            this.customItems.set(data.custom_items.map((item: any) => ({
-              _isCustom: true,
-              tempId: item.id,
-              id: item.id,
-              description: item.description || '',
-              hours: parseFloat(item.hours) || 0,
-              hourly_rate: parseFloat(item.hourly_rate) || 0,
-              flat_fee: parseFloat(item.flat_fee) || 0,
-              cost: parseFloat(item.cost) || 0
-            })));
+            this.customItems.set(
+              data.custom_items
+                .filter((item: any) => item.description !== 'Stripe processing fees')
+                .map((item: any) => ({
+                  _isCustom: true,
+                  tempId: item.id,
+                  id: item.id,
+                  description: item.description || '',
+                  hours: parseFloat(item.hours) || 0,
+                  hourly_rate: parseFloat(item.hourly_rate) || 0,
+                  flat_fee: parseFloat(item.flat_fee) || 0,
+                  cost: parseFloat(item.cost) || 0
+                }))
+            );
           } else {
             this.customItems.set([]);
           }

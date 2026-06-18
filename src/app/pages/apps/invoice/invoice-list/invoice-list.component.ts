@@ -177,8 +177,8 @@ export class AppInvoiceListComponent implements AfterViewInit {
 
     this.invoiceService.createInvoice({
       company_id: this.selectedCompanyId(),
-      billing_period_start: moment(this.startDate).startOf('day').toISOString(),
-      billing_period_end: moment(this.endDate).endOf('day').toISOString(),
+      billing_period_start: moment(this.startDate).format('YYYY-MM-DD'),
+      billing_period_end: moment(this.endDate).format('YYYY-MM-DD'),
     }).subscribe({
       next: (response: any) => {
       this.selectedCompanyId.set(null);
