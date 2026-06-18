@@ -90,7 +90,6 @@ export class AppSideRegisterComponent {
   companyId: string = '';
   companies: any[] = [];
   positions: any[] = [];
-  locations: any[] = [];
   careerRoles: any[] = [{
     title: "Virtual Assistant",
     position_id: 16
@@ -217,12 +216,6 @@ export class AppSideRegisterComponent {
     };
   }
 
-  getLocations() {
-    this.applicationsService.getLocations().subscribe((locations: any) => {
-      this.locations = locations;
-    });
-  }
-
   showImportantInformation() {
     this.isImportantInformationVisible = true;
   }
@@ -230,9 +223,6 @@ export class AppSideRegisterComponent {
   showRegisterForm(userRole: string) {
     this.isRegisterFormVisible = true;
     this.userRole = userRole;
-    if (userRole === '2' && !this.hasInvitation) {
-      this.getLocations();
-    }
   }
 
   getCompanies() {
