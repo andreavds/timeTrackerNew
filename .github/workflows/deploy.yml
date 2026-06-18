@@ -2,43 +2,278 @@ name: Deployment Pipeline
 
 on:
   push:
-    branches: [ "main" ]  
+    branches: [ "develop" ]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest 
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 
+        uses: actions/checkout@v5
 
-      # Dependencies
+      - name: Cache node modules
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
-        run: npm install 
+        run: npm ci
 
-      # Build
+      # TODO(refactor branch): re-enable test gate once suite is fixed
+      - name: Run tests
+        continue-on-error: true
+        run: npm test -- --watch=false --browsers=ChromeHeadless
+
       - name: Build project
         run: npm run build
 
-      # Setup SSH key
+  deploy-stage:
+    name: Deploy to Stage
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build:stage
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key.pem
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
           chmod 600 ~/.ssh/deploy_key.pem
-          ssh-keyscan ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan "${{ secrets.STAGE_SERVER_IP }}" >> ~/.ssh/known_hosts
 
-      # Deploy
+      - name: Pre-flight check
+        run: |
+          ssh -i ~/.ssh/deploy_key.pem ubuntu@${{ secrets.STAGE_SERVER_IP }} << 'ENDSSH'
+          set -e
+          for MOUNTPOINT in /home /var; do
+            AVAIL=$(df --output=avail "$MOUNTPOINT" | tail -1)
+            if [ "$AVAIL" -lt 524288 ]; then
+              echo "ERROR: less than 512 MB free on $MOUNTPOINT (${AVAIL} KB available). Aborting." >&2
+              exit 1
+            fi
+            echo "Disk OK on $MOUNTPOINT: ${AVAIL} KB available"
+          done
+          rm -rf /home/ubuntu/dist/*
+          ENDSSH
+
       - name: Copy files to server
         run: |
-          scp -i ~/.ssh/deploy_key.pem -r ./dist/* ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/dist/
-      
-      - name: Update files and restart Nginx
+          scp -i ~/.ssh/deploy_key.pem -r ./dist/browser/* ubuntu@${{ secrets.STAGE_SERVER_IP }}:/home/ubuntu/dist/
+
+      - name: Deploy frontend
+        env:
+          SHA: ${{ github.sha }}
+          STAGE_IP: ${{ secrets.STAGE_SERVER_IP }}
         run: |
-          ssh -i ~/.ssh/deploy_key.pem ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP}} "
-            sudo rm -rf /var/www/htmlOLD/* &&
-            sudo mv /var/www/html/* /var/www/htmlOLD/ &&
-            sudo mv /home/ubuntu/dist/* /var/www/html/ &&
-            sudo systemctl restart nginx &&
-            sudo chown -R www-data:www-data /var/www/
-          "
+          ssh -i ~/.ssh/deploy_key.pem ubuntu@"$STAGE_IP" env SHA="$SHA" bash << 'ENDSSH'
+          set -e
+          RELEASE_DIR="/var/www/releases/$SHA"
+
+          [ "$(ls -A /home/ubuntu/dist/)" ] || { echo "ERROR: /home/ubuntu/dist/ is empty after upload" >&2; exit 1; }
+
+          sudo mkdir -p "$RELEASE_DIR"
+          sudo cp -r /home/ubuntu/dist/* "$RELEASE_DIR/"
+
+          [ "$(ls -A $RELEASE_DIR)" ] || { echo "ERROR: release dir is empty after copy" >&2; exit 1; }
+
+          sudo chown -R www-data:www-data "$RELEASE_DIR"
+
+          if [ -d /var/www/html ] && [ ! -L /var/www/html ]; then
+            sudo mv /var/www/html /var/www/releases/html-initial
+          fi
+
+          sudo ln -sfn "$RELEASE_DIR" /var/www/html
+          sudo systemctl restart nginx
+
+          ls -1t /var/www/releases/ 2>/dev/null | tail -n +4 | \
+            xargs -r -I{} sudo rm -rf "/var/www/releases/{}" || true
+
+          rm -rf /home/ubuntu/dist/*
+          ENDSSH
+
+  deploy-production:
+    name: Deploy to Production
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key.pem
+          chmod 600 ~/.ssh/deploy_key.pem
+          ssh-keyscan "${{ secrets.PROD_SERVER_IP }}" >> ~/.ssh/known_hosts
+
+      - name: Pre-flight check
+        run: |
+          ssh -i ~/.ssh/deploy_key.pem ubuntu@${{ secrets.PROD_SERVER_IP }} << 'ENDSSH'
+          set -e
+          for MOUNTPOINT in /home /var; do
+            AVAIL=$(df --output=avail "$MOUNTPOINT" | tail -1)
+            if [ "$AVAIL" -lt 524288 ]; then
+              echo "ERROR: less than 512 MB free on $MOUNTPOINT (${AVAIL} KB available). Aborting." >&2
+              exit 1
+            fi
+            echo "Disk OK on $MOUNTPOINT: ${AVAIL} KB available"
+          done
+          rm -rf /home/ubuntu/dist/*
+          ENDSSH
+
+      - name: Copy files to server
+        run: |
+          scp -i ~/.ssh/deploy_key.pem -r ./dist/browser/* ubuntu@${{ secrets.PROD_SERVER_IP }}:/home/ubuntu/dist/
+
+      - name: Deploy frontend
+        env:
+          SHA: ${{ github.sha }}
+          PROD_IP: ${{ secrets.PROD_SERVER_IP }}
+        run: |
+          ssh -i ~/.ssh/deploy_key.pem ubuntu@"$PROD_IP" env SHA="$SHA" bash << 'ENDSSH'
+          set -e
+          RELEASE_DIR="/var/www/releases/$SHA"
+
+          [ "$(ls -A /home/ubuntu/dist/)" ] || { echo "ERROR: /home/ubuntu/dist/ is empty after upload" >&2; exit 1; }
+
+          sudo mkdir -p "$RELEASE_DIR"
+          sudo cp -r /home/ubuntu/dist/* "$RELEASE_DIR/"
+
+          [ "$(ls -A $RELEASE_DIR)" ] || { echo "ERROR: release dir is empty after copy" >&2; exit 1; }
+
+          sudo chown -R www-data:www-data "$RELEASE_DIR"
+
+          if [ -d /var/www/html ] && [ ! -L /var/www/html ]; then
+            sudo mv /var/www/html /var/www/releases/html-initial
+          fi
+
+          sudo ln -sfn "$RELEASE_DIR" /var/www/html
+          sudo systemctl restart nginx
+
+          ls -1t /var/www/releases/ 2>/dev/null | tail -n +4 | \
+            xargs -r -I{} sudo rm -rf "/var/www/releases/{}" || true
+
+          rm -rf /home/ubuntu/dist/*
+          ENDSSH
+
+  notify:
+    name: Notify Deployment Status
+    needs: [deploy-stage, deploy-production]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Write deployment summary
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          ACTOR: ${{ github.actor }}
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.ref_name }}
+          STAGE_RESULT: ${{ needs.deploy-stage.result }}
+          PROD_RESULT: ${{ needs.deploy-production.result }}
+        run: |
+          echo "Triggered by : $ACTOR"
+          echo "Event        : $EVENT"
+          echo "Branch       : $BRANCH"
+          echo "Stage deploy : $STAGE_RESULT"
+          echo "Prod deploy  : $PROD_RESULT"
+
+          COMMIT=$(echo "$COMMIT_MSG" | tr '\n' ' ')
+
+          {
+            echo "## Deployment Summary"
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Triggered by | $ACTOR |"
+            echo "| Event | $EVENT |"
+            echo "| Branch | $BRANCH |"
+            echo "| Commit | $COMMIT |"
+            echo "| Stage deploy | $STAGE_RESULT |"
+            echo "| Production deploy | $PROD_RESULT |"
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Send Teams notification
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          ACTOR: ${{ github.actor }}
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.ref_name }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          STAGE_RESULT: ${{ needs.deploy-stage.result }}
+          PROD_RESULT: ${{ needs.deploy-production.result }}
+        run: |
+          STAGE="$STAGE_RESULT"
+          PROD="$PROD_RESULT"
+
+          if [[ "$STAGE" == "failure" || "$PROD" == "failure" ]]; then
+            COLOR="FF0000"
+            STATUS="Failed"
+          elif [[ "$STAGE" == "success" || "$PROD" == "success" ]]; then
+            COLOR="28a745"
+            STATUS="Succeeded"
+          else
+            COLOR="808080"
+            STATUS="Skipped"
+          fi
+
+          COMMIT=$(echo "$COMMIT_MSG" | tr '\n' ' ')
+
+          PAYLOAD=$(jq -n \
+            --arg color "$COLOR" \
+            --arg status "$STATUS" \
+            --arg actor "$ACTOR" \
+            --arg event "$EVENT" \
+            --arg branch "$BRANCH" \
+            --arg commit "$COMMIT" \
+            --arg stage "$STAGE" \
+            --arg prod "$PROD" \
+            '{
+              "@type": "MessageCard",
+              "@context": "http://schema.org/extensions",
+              "themeColor": $color,
+              "summary": ("Frontend Deployment " + $status),
+              "sections": [{
+                "activityTitle": ("Frontend Deployment " + $status),
+                "facts": [
+                  {"name": "Triggered by", "value": $actor},
+                  {"name": "Event", "value": $event},
+                  {"name": "Branch", "value": $branch},
+                  {"name": "Commit", "value": $commit},
+                  {"name": "Stage deploy", "value": $stage},
+                  {"name": "Production deploy", "value": $prod}
+                ]
+              }]
+            }')
+
+          curl -s -X POST \
+            -H 'Content-Type: application/json' \
+            -d "$PAYLOAD" \
+            "$TEAMS_WEBHOOK_URL"
