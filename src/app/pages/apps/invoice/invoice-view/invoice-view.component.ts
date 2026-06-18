@@ -32,7 +32,7 @@ export class AppInvoiceViewComponent {
     const items = this.invoiceDetail()?.invoiceItems || [];
     const customItems = (this.invoiceDetail()?.custom_items || []);
     const filteredCustomItems = customItems
-      .filter((ci: any) => !(ci.description && /stripe/i.test(ci.description)))
+      .filter((ci: any) => ci.description !== 'Stripe processing fees')
       .map((item: any) => ({ ...item, _isCustom: true }));
     return [...items, ...filteredCustomItems];
   });
@@ -190,7 +190,7 @@ export class AppInvoiceViewComponent {
     }, 0);
 
     const customAmount = (invoice.custom_items || [])
-      .filter((ci: any) => !(ci.description && /stripe/i.test(ci.description)))
+      .filter((ci: any) => ci.description !== 'Stripe processing fees')
       .reduce((total: number, item: any) => {
         return total + (parseFloat(item.cost) || 0);
       }, 0);

@@ -149,6 +149,7 @@ export class AppEditInvoiceComponent {
   }
 
   calculateStripeFee(subtotal: number): number {
+    if (!isFinite(subtotal) || subtotal <= 0) return 0;
     const total = (subtotal + this.STRIPE_FIXED_FEE) / (1 - this.STRIPE_PERCENTAGE_FEE);
     return +(total - subtotal).toFixed(2);
   }
