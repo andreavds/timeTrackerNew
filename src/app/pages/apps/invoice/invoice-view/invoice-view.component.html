@@ -75,13 +75,29 @@
                   <td mat-footer-cell *matFooterCellDef colspan="4">Sub-total</td>
                 </ng-container>
 
+                <ng-container matColumnDef="footer-sub-amount">
+                  <td mat-footer-cell *matFooterCellDef>
+                    {{ getSubtotalExcludingStripe() | currency: 'USD' }}
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="footer-fee">
+                  <td mat-footer-cell *matFooterCellDef colspan="4">Stripe processing fees: {{ getStripeFeeLabel() }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="footer-fee-amount">
+                  <td mat-footer-cell *matFooterCellDef>
+                    {{ calculateStripeFee(getSubtotalExcludingStripe()) | currency: 'USD' }}
+                  </td>
+                </ng-container>
+
                 <ng-container matColumnDef="footer-total">
                   <td mat-footer-cell *matFooterCellDef colspan="4">Total</td>
                 </ng-container>
 
-                <ng-container matColumnDef="footer-amount">
+                <ng-container matColumnDef="footer-total-amount">
                   <td mat-footer-cell *matFooterCellDef>
-                    {{ calculateTotalAmount() | currency: 'USD' }}
+                    {{ (getSubtotalExcludingStripe() + calculateStripeFee(getSubtotalExcludingStripe())) | currency: 'USD' }}
                   </td>
                 </ng-container>
 
@@ -92,6 +108,7 @@
                 <tr mat-header-row *matHeaderRowDef="itemsDisplayedColumns"></tr>
                 <tr mat-row *matRowDef="let row; columns: itemsDisplayedColumns;"></tr>
                 <tr mat-footer-row *matFooterRowDef="itemsFooterDisplayedColumns"></tr>
+                <tr mat-footer-row *matFooterRowDef="itemsFeeDisplayedColumns"></tr>
                 <tr mat-footer-row *matFooterRowDef="itemsSecondFooterDisplayedColumns"></tr>
               </table>
             </div>

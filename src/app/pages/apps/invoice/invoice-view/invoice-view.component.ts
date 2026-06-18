@@ -30,20 +30,23 @@ export class AppInvoiceViewComponent {
   itemsDisplayedColumns: string[] = ['description', 'hours', 'hourly-rate', 'flat-fee', 'cost'];
   combinedItems = computed(() => {
     const items = this.invoiceDetail()?.invoiceItems || [];
-    const customItems = (this.invoiceDetail()?.custom_items || []).map((item: any) => ({
-      ...item,
-      _isCustom: true
-    }));
-    return [...items, ...customItems];
+    const customItems = (this.invoiceDetail()?.custom_items || []);
+    const filteredCustomItems = customItems
+      .filter((ci: any) => ci.description !== 'Stripe processing fees')
+      .map((item: any) => ({ ...item, _isCustom: true }));
+    return [...items, ...filteredCustomItems];
   });
-  itemsFooterDisplayedColumns = ['footer-sub-total', 'footer-amount', 'empty-column'];
-  itemsSecondFooterDisplayedColumns = ['footer-total', 'footer-amount', 'empty-column'];
+  itemsFooterDisplayedColumns = ['footer-sub-total', 'footer-sub-amount', 'empty-column'];
+  itemsFeeDisplayedColumns = ['footer-fee', 'footer-fee-amount', 'empty-column'];
+  itemsSecondFooterDisplayedColumns = ['footer-total', 'footer-total-amount', 'empty-column'];
   ratingsDisplayedColumns: string[] = ['day', 'date', 'clock-in', 'clock-out', 'total-hours', 'comments'];
   footerDisplayedColumns = ['footer-total', 'footer-amount', 'empty-column'];
   tax: number = 0;
   inimbleSupervisor = signal<string>('Sergio Ávila');
   loader = new Loader(false, false, false);
   message = '';
+  private readonly STRIPE_FIXED_FEE = 0.30;
+  private readonly STRIPE_PERCENTAGE_FEE = 0.029;
 
   constructor(
     private activatedRouter: ActivatedRoute,
@@ -167,6 +170,36 @@ export class AppInvoiceViewComponent {
     }, 0);
 
     return baseAmount + customAmount;
+  }
+
+  calculateStripeFee(subtotal: number): number {
+    if (!isFinite(subtotal) || subtotal <= 0) return 0;
+    const total = (subtotal + this.STRIPE_FIXED_FEE) / (1 - this.STRIPE_PERCENTAGE_FEE);
+    return +(total - subtotal).toFixed(2);
+  }
+
+  getSubtotalExcludingStripe(): number {
+    const invoice = this.invoiceDetail();
+    if (!invoice) return 0;
+
+    const baseAmount = (invoice.invoiceItems || []).reduce((total: number, item: any) => {
+      const hours = item.hours || 0;
+      const hourlyRate = item.hourly_rate || 0;
+      const flatFee = parseFloat(item.flat_fee) || 0;
+      return total + (hours * hourlyRate) + flatFee;
+    }, 0);
+
+    const customAmount = (invoice.custom_items || [])
+      .filter((ci: any) => ci.description !== 'Stripe processing fees')
+      .reduce((total: number, item: any) => {
+        return total + (parseFloat(item.cost) || 0);
+      }, 0);
+
+    return baseAmount + customAmount;
+  }
+
+  getStripeFeeLabel(): string {
+    return `${(this.STRIPE_PERCENTAGE_FEE * 100).toFixed(1)}% + $${this.STRIPE_FIXED_FEE.toFixed(2)}`;
   }
 
   decimalToTime(decimal: number): string {
