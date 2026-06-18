@@ -42,6 +42,8 @@ export class AppEditInvoiceComponent {
   itemsFooterDisplayedColumns = ['footer-sub-total', 'footer-sub-amount', 'empty-column'];
   itemsSecondFooterDisplayedColumns = ['footer-total', 'footer-total-amount', 'empty-column'];
   itemsAddItemColumns = ['add-new-item'];
+  itemsFeeDisplayedColumns = ['footer-fee-label', 'footer-fee-amount', 'empty-column'];
+  stripeFee = signal<number>(0);
   ratingsDisplayedColumns: string[] = ['day', 'date', 'clock-in', 'clock-out', 'total-hours', 'comments', 'actions'];
   footerDisplayedColumns = ['footer-total', 'footer-amount', 'empty-column', 'empty-column'];
   footerAddEntryColumns = ['add-entry'];
@@ -60,6 +62,8 @@ export class AppEditInvoiceComponent {
   message = '';
   changedFlatFees = new Set<any>();
   isEntriesTableVisible = true;
+  private readonly STRIPE_FIXED_FEE = 0.30;
+  private readonly STRIPE_PERCENTAGE_FEE = 0.029;
   deletedEntries = new Set<number>();
   customItems = signal<any[]>([]);
   combinedItems = computed(() => [
@@ -142,6 +146,16 @@ export class AppEditInvoiceComponent {
     this.customItems.update(items => [...items, newItem]);
     this.recalculateCosts();
     this.cdr.detectChanges();
+  }
+
+  calculateStripeFee(subtotal: number): number {
+    if (!isFinite(subtotal) || subtotal <= 0) return 0;
+    const total = (subtotal + this.STRIPE_FIXED_FEE) / (1 - this.STRIPE_PERCENTAGE_FEE);
+    return +(total - subtotal).toFixed(2);
+  }
+
+  calculateGrandTotal(): number {
+    return this.calculateTotalAmount() + this.stripeFee();
   }
 
   removeCustomItem(tempId: number): void {
@@ -228,16 +242,20 @@ export class AppEditInvoiceComponent {
         });
 
         if (Array.isArray(data.custom_items) && data.custom_items.length > 0) {
-          this.customItems.set(data.custom_items.map((item: any) => ({
-            _isCustom: true,
-            tempId: item.id,
-            id: item.id,
-            description: item.description || '',
-            hours: parseFloat(item.hours) || 0,
-            hourly_rate: parseFloat(item.hourly_rate) || 0,
-            flat_fee: parseFloat(item.flat_fee) || 0,
-            cost: parseFloat(item.cost) || 0
-          })));
+          this.customItems.set(
+            data.custom_items
+              .filter((item: any) => item.description !== 'Stripe processing fees')
+              .map((item: any) => ({
+                _isCustom: true,
+                tempId: item.id,
+                id: item.id,
+                description: item.description || '',
+                hours: parseFloat(item.hours) || 0,
+                hourly_rate: parseFloat(item.hourly_rate) || 0,
+                flat_fee: parseFloat(item.flat_fee) || 0,
+                cost: parseFloat(item.cost) || 0
+              }))
+          );
         } else {
           this.customItems.set([]);
         }
@@ -314,16 +332,20 @@ export class AppEditInvoiceComponent {
           this.changedHourlyRates.clear();
           this.deletedEntries.clear();
           if (Array.isArray(data.custom_items) && data.custom_items.length > 0) {
-            this.customItems.set(data.custom_items.map((item: any) => ({
-              _isCustom: true,
-              tempId: item.id,
-              id: item.id,
-              description: item.description || '',
-              hours: parseFloat(item.hours) || 0,
-              hourly_rate: parseFloat(item.hourly_rate) || 0,
-              flat_fee: parseFloat(item.flat_fee) || 0,
-              cost: parseFloat(item.cost) || 0
-            })));
+            this.customItems.set(
+              data.custom_items
+                .filter((item: any) => item.description !== 'Stripe processing fees')
+                .map((item: any) => ({
+                  _isCustom: true,
+                  tempId: item.id,
+                  id: item.id,
+                  description: item.description || '',
+                  hours: parseFloat(item.hours) || 0,
+                  hourly_rate: parseFloat(item.hourly_rate) || 0,
+                  flat_fee: parseFloat(item.flat_fee) || 0,
+                  cost: parseFloat(item.cost) || 0
+                }))
+            );
           } else {
             this.customItems.set([]);
           }
@@ -770,7 +792,10 @@ export class AppEditInvoiceComponent {
       item.cost = this.calculateItemCost(item);
     });
 
-    const newAmount = this.calculateTotalAmount();
+    const subtotal = this.calculateTotalAmount();
+    this.stripeFee.set(this.calculateStripeFee(subtotal));
+
+    const newAmount = subtotal + this.stripeFee();
     this.editModel.update(m => ({ ...m, amount: newAmount }));
     this.invoiceForm.patchValue({ amount: newAmount });
   }
@@ -873,13 +898,22 @@ export class AppEditInvoiceComponent {
       changed_hourly_rates: [...this.changedHourlyRates],
       changed_flat_fees: [...this.changedFlatFees],
       deleted_entries: [...this.deletedEntries],
-      custom_items: this.customItems().map((item: any) => ({
-        description: item.description,
-        hours: item.hours,
-        hourly_rate: item.hourly_rate,
-        flat_fee: item.flat_fee,
-        cost: item.cost
-      })),
+      custom_items: [
+        ...this.customItems().map((item: any) => ({
+          description: item.description,
+          hours: item.hours,
+          hourly_rate: item.hourly_rate,
+          flat_fee: item.flat_fee,
+          cost: item.cost,
+        })),
+        {
+          description: 'Stripe processing fees',
+          hours: 0,
+          hourly_rate: 0,
+          flat_fee: 0,
+          cost: this.stripeFee(),
+        },
+      ],
     };
 
     this.invoiceService.updateInvoice(this.id(), data).subscribe({
