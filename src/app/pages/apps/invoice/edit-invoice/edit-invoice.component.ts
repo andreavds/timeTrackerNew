@@ -75,22 +75,6 @@ export class AppEditInvoiceComponent {
     return item.id;
   }
 
-  private normalizeDateForPicker(value: string | Date | null | undefined): Date | null {
-    if (!value) return null;
-    const parsed = new Date(value);
-    if (isNaN(parsed.getTime())) return null;
-
-    return new Date(
-      parsed.getUTCFullYear(),
-      parsed.getUTCMonth(),
-      parsed.getUTCDate(),
-      12,
-      0,
-      0,
-      0
-    );
-  }
-
   constructor(
     private activatedRouter: ActivatedRoute,
     private invoiceService: InvoiceService,
@@ -217,10 +201,6 @@ export class AppEditInvoiceComponent {
     this.invoiceService.getInvoiceDetail(this.id()).subscribe({
       next: (data) => {
         this.originalData = data;
-
-        const normalizedBillingStart = this.normalizeDateForPicker(data.billing_period_start);
-        const normalizedBillingEnd = this.normalizeDateForPicker(data.billing_period_end);
-
         this.ensureInvoiceItemOwnership(data.invoiceItems || []);
 
         this.editModel.set({
@@ -324,8 +304,8 @@ export class AppEditInvoiceComponent {
           this.ensureInvoiceItemOwnership(data.invoiceItems || []);
           this.editModel.set({
             ...data,
-            billing_period_start: this.normalizeDateForPicker(data.billing_period_start),
-            billing_period_end: this.normalizeDateForPicker(data.billing_period_end),
+            billing_period_start: start,
+            billing_period_end: end,
           });
           this.changedEntries.clear();
           this.changedFlatFees.clear();
