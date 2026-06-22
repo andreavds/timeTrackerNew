@@ -176,6 +176,7 @@ export class AppEditInvoiceComponent {
       status: 1,
     };
     item.entries.push(newEntry);
+    item.entries.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
     this.markEntryAsChanged(newEntry);
     this.recalculateCosts();
     this.updateFormArrayWithChanges();
