@@ -44,12 +44,12 @@ export class InvoiceService {
   getInvoiceDetail(id: number, start?: string | Date, end?: string | Date): Observable<any> {
     let params: any = {};
     if (start) {
-      const startDate = this.toIsoDateOnly(start);
-      if (startDate) params.start = startDate;
+      const d = new Date(start);
+      params.start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
     if (end) {
-      const endDate = this.toIsoDateOnly(end);
-      if (endDate) params.end = endDate;
+      const d = new Date(end);
+      params.end = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
     return this.http.get(`${this.apiUrl}/stripe/invoice/${id}`, { params });
   }

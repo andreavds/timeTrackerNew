@@ -75,22 +75,6 @@ export class AppEditInvoiceComponent {
     return item.id;
   }
 
-  private normalizeDateForPicker(value: string | Date | null | undefined): Date | null {
-    if (!value) return null;
-    const parsed = new Date(value);
-    if (isNaN(parsed.getTime())) return null;
-
-    return new Date(
-      parsed.getUTCFullYear(),
-      parsed.getUTCMonth(),
-      parsed.getUTCDate(),
-      12,
-      0,
-      0,
-      0
-    );
-  }
-
   constructor(
     private activatedRouter: ActivatedRoute,
     private invoiceService: InvoiceService,
@@ -165,10 +149,7 @@ export class AppEditInvoiceComponent {
   }
 
   onCustomItemFieldChange(item: any): void {
-    const flatFee = parseFloat(item.flat_fee) || 0;
-    item.cost = flatFee > 0
-      ? flatFee
-      : (parseFloat(item.hours) || 0) * (parseFloat(item.hourly_rate) || 0);
+    item.cost = this.calculateItemCost(item);
     this.customItems.update(items => [...items]);
     this.recalculateCosts();
     this.cdr.detectChanges();
@@ -179,11 +160,13 @@ export class AppEditInvoiceComponent {
     if (!item.entries) {
       item.entries = [];
     }
+    const periodStart = this.editModel()?.billing_period_start;
+    const seedDate = periodStart ? new Date(periodStart) : new Date();
     const newEntry = {
       id: Math.floor(Math.random() * 1000000000),
-      date: new Date().toISOString(),
-      start_time: new Date(),
-      end_time: new Date(),
+      date: seedDate.toISOString(),
+      start_time: seedDate,
+      end_time: seedDate,
       entry_hours: 0,
       task: { description: '' },
       employee_id: item.employee_id,
@@ -192,11 +175,19 @@ export class AppEditInvoiceComponent {
       status: 1,
     };
     item.entries.push(newEntry);
+    item.entries.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
     this.markEntryAsChanged(newEntry);
     this.recalculateCosts();
     this.updateFormArrayWithChanges();
     this.cdr.detectChanges();
     this.isEntriesTableVisible = true;
+    setTimeout(() => {
+      const rows = document.querySelectorAll('table#entries-table tr[mat-row]');
+      const added = Array.from(rows).find((row: any) =>
+        row.querySelector('input')?.value?.startsWith(seedDate.toISOString().slice(0, 10))
+      );
+      (added as HTMLElement | undefined)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
   }
 
   private loadCients(): void {
@@ -217,10 +208,6 @@ export class AppEditInvoiceComponent {
     this.invoiceService.getInvoiceDetail(this.id()).subscribe({
       next: (data) => {
         this.originalData = data;
-
-        const normalizedBillingStart = this.normalizeDateForPicker(data.billing_period_start);
-        const normalizedBillingEnd = this.normalizeDateForPicker(data.billing_period_end);
-
         this.ensureInvoiceItemOwnership(data.invoiceItems || []);
 
         this.editModel.set({
@@ -233,8 +220,8 @@ export class AppEditInvoiceComponent {
           invoice_number: data.invoice_number,
           terms: data.terms,
           created_at: data.created_at,
-          billing_period_start: normalizedBillingStart,
-          billing_period_end: normalizedBillingEnd,
+          billing_period_start: this.normalizeDateForPicker(data.billing_period_start),
+          billing_period_end: this.normalizeDateForPicker(data.billing_period_end),
           inimble_supervisor: data.inimble_supervisor || this.inimbleSupervisor(),
           direct_supervisor: data.direct_supervisor || data?.user?.name + " " + data?.user?.last_name,
           invoiceItems: data.invoiceItems,
@@ -272,8 +259,8 @@ export class AppEditInvoiceComponent {
           project_title: data.project_title,
           invoice_number: data.invoice_number,
           terms: data.terms,
-          billing_period_start: normalizedBillingStart,
-          billing_period_end: normalizedBillingEnd,
+          billing_period_start: this.normalizeDateForPicker(data.billing_period_start),
+          billing_period_end: this.normalizeDateForPicker(data.billing_period_end),
         });
 
         const itemsArray = this.invoiceForm.get('invoiceItems') as FormArray;
@@ -324,8 +311,8 @@ export class AppEditInvoiceComponent {
           this.ensureInvoiceItemOwnership(data.invoiceItems || []);
           this.editModel.set({
             ...data,
-            billing_period_start: this.normalizeDateForPicker(data.billing_period_start),
-            billing_period_end: this.normalizeDateForPicker(data.billing_period_end),
+            billing_period_start: start,
+            billing_period_end: end,
           });
           this.changedEntries.clear();
           this.changedFlatFees.clear();
@@ -513,6 +500,13 @@ export class AppEditInvoiceComponent {
     }
   }
 
+  private normalizeDateForPicker(value: string | Date | null | undefined): Date | null {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (isNaN(parsed.getTime())) return null;
+    return new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate(), 12, 0, 0, 0);
+  }
+
   toDateInputValue(date: string | Date): string {
     if (!date) {
       return new Date().toISOString().split('T')[0];
@@ -613,9 +607,11 @@ export class AppEditInvoiceComponent {
   }
 
   calculateItemCost(item: any): number {
-    const totalHours = this.getTotalHoursForItem(item);
-    const hourlyRate = item.hourly_rate || 0;
-    const flatFee = parseFloat(item.flat_fee) || 0.00;
+    const totalHours = item.entries
+      ? this.getTotalHoursForItem(item)
+      : (parseFloat(item.hours) || 0);
+    const hourlyRate = parseFloat(item.hourly_rate) || 0;
+    const flatFee = parseFloat(item.flat_fee) || 0;
     return (totalHours * hourlyRate) + flatFee;
   }
 
@@ -792,6 +788,10 @@ export class AppEditInvoiceComponent {
       item.cost = this.calculateItemCost(item);
     });
 
+    this.customItems.update(items =>
+      items.map((item: any) => ({ ...item, cost: this.calculateItemCost(item) }))
+    );
+
     const subtotal = this.calculateTotalAmount();
     this.stripeFee.set(this.calculateStripeFee(subtotal));
 
@@ -927,4 +927,3 @@ export class AppEditInvoiceComponent {
       }
     });
   }
-}
