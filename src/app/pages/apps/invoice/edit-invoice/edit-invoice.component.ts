@@ -149,10 +149,7 @@ export class AppEditInvoiceComponent {
   }
 
   onCustomItemFieldChange(item: any): void {
-    const flatFee = parseFloat(item.flat_fee) || 0;
-    item.cost = flatFee > 0
-      ? flatFee
-      : (parseFloat(item.hours) || 0) * (parseFloat(item.hourly_rate) || 0);
+    item.cost = this.calculateItemCost(item);
     this.customItems.update(items => [...items]);
     this.recalculateCosts();
     this.cdr.detectChanges();
@@ -601,9 +598,11 @@ export class AppEditInvoiceComponent {
   }
 
   calculateItemCost(item: any): number {
-    const totalHours = this.getTotalHoursForItem(item);
-    const hourlyRate = item.hourly_rate || 0;
-    const flatFee = parseFloat(item.flat_fee) || 0.00;
+    const totalHours = item.entries
+      ? this.getTotalHoursForItem(item)
+      : (parseFloat(item.hours) || 0);
+    const hourlyRate = parseFloat(item.hourly_rate) || 0;
+    const flatFee = parseFloat(item.flat_fee) || 0;
     return (totalHours * hourlyRate) + flatFee;
   }
 
@@ -779,6 +778,10 @@ export class AppEditInvoiceComponent {
       item.hours = this.getTotalHoursForItem(item);
       item.cost = this.calculateItemCost(item);
     });
+
+    this.customItems.update(items =>
+      items.map((item: any) => ({ ...item, cost: this.calculateItemCost(item) }))
+    );
 
     const subtotal = this.calculateTotalAmount();
     this.stripeFee.set(this.calculateStripeFee(subtotal));
