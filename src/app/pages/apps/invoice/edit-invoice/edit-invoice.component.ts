@@ -163,7 +163,7 @@ export class AppEditInvoiceComponent {
     const periodEnd = this.editModel()?.billing_period_end;
     const seedDate = periodEnd ? new Date(periodEnd) : new Date();
     const newEntry = {
-      id: Math.floor(Math.random() * 1000000000),
+      id: -(Math.floor(Math.random() * 1000000000) + 1),
       date: seedDate.toISOString(),
       start_time: seedDate,
       end_time: seedDate,
@@ -475,9 +475,9 @@ export class AppEditInvoiceComponent {
         return new Date().toISOString();
       }
 
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      const day = date.getDate();
+      const year = date.getUTCFullYear();
+      const month = date.getUTCMonth();
+      const day = date.getUTCDate();
 
       const combinedDate = new Date(year, month, day, hours, minutes, 0);
 
