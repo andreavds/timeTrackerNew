@@ -160,8 +160,8 @@ export class AppEditInvoiceComponent {
     if (!item.entries) {
       item.entries = [];
     }
-    const periodStart = this.editModel()?.billing_period_start;
-    const seedDate = periodStart ? new Date(periodStart) : new Date();
+    const periodEnd = this.editModel()?.billing_period_end;
+    const seedDate = periodEnd ? new Date(periodEnd) : new Date();
     const newEntry = {
       id: Math.floor(Math.random() * 1000000000),
       date: seedDate.toISOString(),
@@ -181,13 +181,6 @@ export class AppEditInvoiceComponent {
     this.updateFormArrayWithChanges();
     this.cdr.detectChanges();
     this.isEntriesTableVisible = true;
-    setTimeout(() => {
-      const rows = document.querySelectorAll('table#entries-table tr[mat-row]');
-      const added = Array.from(rows).find((row: any) =>
-        row.querySelector('input')?.value?.startsWith(seedDate.toISOString().slice(0, 10))
-      );
-      (added as HTMLElement | undefined)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 0);
   }
 
   private loadCients(): void {
