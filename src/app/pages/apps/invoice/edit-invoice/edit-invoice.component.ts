@@ -160,11 +160,13 @@ export class AppEditInvoiceComponent {
     if (!item.entries) {
       item.entries = [];
     }
+    const periodEnd = this.editModel()?.billing_period_end;
+    const seedDate = periodEnd ? new Date(periodEnd) : new Date();
     const newEntry = {
       id: Math.floor(Math.random() * 1000000000),
-      date: new Date().toISOString(),
-      start_time: new Date(),
-      end_time: new Date(),
+      date: seedDate.toISOString(),
+      start_time: seedDate,
+      end_time: seedDate,
       entry_hours: 0,
       task: { description: '' },
       employee_id: item.employee_id,
